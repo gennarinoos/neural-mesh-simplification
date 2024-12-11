@@ -67,7 +67,7 @@ save_mesh(simplified_mesh, "path/to/simplified_mesh.obj")
 To train the model on your own dataset:
 
 ```bash
-python ./scripts/train.py --data_path /path/to/your/dataset --epochs 100 --batch_size 32
+python ./scripts/train.py --data_dir /path/to/your/dataset --config /path/to/config.yaml --checkpoint_dir /path/to/checkpoints
 ```
 
 ## Evaluation
@@ -75,8 +75,27 @@ python ./scripts/train.py --data_path /path/to/your/dataset --epochs 100 --batch
 To evaluate the model on a test set:
 
 ```bash
-python ./scripts/evaluate.py --model_path /path/to/saved/model --test_data /path/to/test/set
+python ./scripts/evaluate.py --data_dir /path/to/test/set --config /path/to/config.yaml --checkpoint /path/to/checkpoints/best_model.pth
 ```
+
+## Trainer Class
+
+The `Trainer` class is responsible for managing the training and evaluation process. It includes methods for training, validation, checkpointing, logging, early stopping, learning rate scheduling, state management, error handling, and configuration management.
+
+### Methods
+
+- `__init__(self, config: Dict[str, Any])`: Initializes the trainer with the given configuration.
+- `train(self)`: Trains the model for the specified number of epochs.
+- `_train_one_epoch(self, epoch: int)`: Trains the model for one epoch.
+- `_validate(self, epoch: int) -> float`: Validates the model and returns the validation loss.
+- `_save_checkpoint(self, epoch: int, val_loss: float)`: Saves a checkpoint of the model.
+- `_early_stopping(self, val_loss: float) -> bool`: Checks if early stopping should be triggered.
+- `load_checkpoint(self, checkpoint_path: str)`: Loads a checkpoint from the specified path.
+- `log_metrics(self, metrics: Dict[str, float], epoch: int)`: Logs the specified metrics.
+- `evaluate(self, data_loader: DataLoader) -> Dict[str, float]`: Evaluates the model and returns the evaluation metrics.
+- `handle_error(self, error: Exception)`: Handles errors that occur during training.
+- `save_training_state(self, state_path: str)`: Saves the training state to the specified path.
+- `load_training_state(self, state_path: str)`: Loads the training state from the specified path.
 
 ## Citation
 
