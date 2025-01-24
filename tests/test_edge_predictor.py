@@ -2,6 +2,7 @@ import torch
 import pytest
 import torch.nn as nn
 from torch_geometric.data import Data
+from torch_geometric.nn import knn_graph
 from models.edge_predictor import EdgePredictor
 from models.layers.devconv import DevConv
 
@@ -87,3 +88,80 @@ def test_edge_predictor_different_input_sizes():
     assert simplified_adj_indices.shape[0] == 2
     assert simplified_adj_values.shape[0] == simplified_adj_indices.shape[1]
     assert torch.max(simplified_adj_indices) < 10
+
+
+def test_attention_scores_shape(sample_mesh_data):
+    edge_predictor = EdgePredictor(in_channels=3, hidden_channels=64, k=2)
+
+    # Get intermediate features
+    knn_edges = knn_graph(sample_mesh_data.x, k=2, flow="target_to_source")
+    extended_edges = torch.cat([sample_mesh_data.edge_index, knn_edges], dim=1)
+    features = edge_predictor.devconv(sample_mesh_data.x, extended_edges)
+
+    # Test attention scores
+    attention_scores = edge_predictor.compute_attention_scores(
+        features, sample_mesh_data.edge_index
+    )
+
+    assert attention_scores.shape[0] == sample_mesh_data.edge_index.shape[1]
+    assert torch.allclose(
+        attention_scores.sum(),
+        torch.tensor(
+            len(torch.unique(sample_mesh_data.edge_index[0])), dtype=torch.float32
+        ),
+    )
+
+
+def test_simplified_adjacency_shapes():
+    # Create a simple graph
+    x = torch.rand(5, 3)
+    edge_index = torch.tensor([[0, 1, 1, 2], [1, 0, 2, 1]], dtype=torch.long)
+    attention_scores = torch.rand(edge_index.shape[1])
+
+    edge_predictor = EdgePredictor(in_channels=3, hidden_channels=64)
+    indices, values = edge_predictor.compute_simplified_adjacency(
+        attention_scores, edge_index
+    )
+
+    assert indices.shape[0] == 2
+    assert indices.shape[1] == values.shape[0]
+    assert torch.max(indices) < 5
+
+
+def test_empty_input_handling():
+    edge_predictor = EdgePredictor(in_channels=3, hidden_channels=64)
+    x = torch.rand(5, 3)
+    empty_edge_index = torch.empty((2, 0), dtype=torch.long)
+
+    # Test forward pass with empty edge_index
+    indices, values = edge_predictor(x, empty_edge_index)
+    assert indices.shape == (2, 0)
+    assert values.shape == (0,)
+
+    # Test compute_simplified_adjacency with empty edge_index
+    empty_attention_scores = torch.empty(0)
+    indices, values = edge_predictor.compute_simplified_adjacency(
+        empty_attention_scores, empty_edge_index
+    )
+    assert indices.shape == (2, 0)
+    assert values.shape == (0,)
+
+
+def test_feature_transformation():
+    edge_predictor = EdgePredictor(in_channels=3, hidden_channels=64, k=2)
+    x = torch.rand(5, 3)
+    edge_index = torch.tensor([[0, 1, 1, 2], [1, 0, 2, 1]], dtype=torch.long)
+
+    # Get intermediate features
+    knn_edges = knn_graph(x, k=2, flow="target_to_source")
+    extended_edges = torch.cat([edge_index, knn_edges], dim=1)
+    features = edge_predictor.devconv(x, extended_edges)
+
+    # Check feature dimensions
+    assert features.shape == (5, 64)  # [num_nodes, hidden_channels]
+
+    # Check transformed features through attention layers
+    q = edge_predictor.W_q(features)
+    k = edge_predictor.W_k(features)
+    assert q.shape == (5, 64)
+    assert k.shape == (5, 64)
