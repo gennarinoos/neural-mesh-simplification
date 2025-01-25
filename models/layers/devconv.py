@@ -5,8 +5,8 @@ from torch_scatter import scatter_max
 class DevConv(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(DevConv, self).__init__()
-        self.W_theta = nn.Linear(in_channels, out_channels, bias=False)
-        self.W_phi = nn.Linear(in_channels, out_channels, bias=False)
+        self.W_theta = nn.Linear(in_channels, out_channels)
+        self.W_phi = nn.Linear(in_channels, out_channels)
 
     def forward(self, x, edge_index):
         row, col = edge_index
