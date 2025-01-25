@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from torch_scatter import scatter_softmax
 from .layers import TriConv
 
 
@@ -24,11 +23,11 @@ class FaceClassifier(nn.Module):
         if x.size(0) == 0 or pos.size(0) == 0:
             return torch.tensor([], device=x.device)
 
-        # Compute barycenters if pos is 3D
+        # If pos is 3D (num_faces, 3, 3), compute centroids
         if pos.dim() == 3:
-            pos = pos.mean(dim=1)
+            pos = pos.mean(dim=1)  # Average vertex positions to get face centers
 
-        # Construct k-nn graph based on barycenter distances
+        # Construct k-nn graph based on triangle centers
         edge_index = self.custom_knn_graph(pos, self.k, batch)
 
         # Apply TriConv layers
@@ -37,15 +36,21 @@ class FaceClassifier(nn.Module):
             x = torch.relu(x)
 
         # Final classification
-        x = self.final_layer(x).squeeze(-1)
+        x = self.final_layer(x)
+        logits = x.squeeze(-1)  # Remove last dimension
 
-        # Apply softmax per batch
+        # Apply softmax normalization per batch
         if batch is None:
-            probabilities = torch.softmax(x, dim=0)
+            # Global normalization using softmax
+            probs = torch.softmax(logits, dim=0)
         else:
-            probabilities = scatter_softmax(x, batch, dim=0)
+            # Per-batch normalization
+            probs = torch.zeros_like(logits)
+            for b in range(int(batch.max().item()) + 1):
+                mask = batch == b
+                probs[mask] = torch.softmax(logits[mask], dim=0)
 
-        return probabilities
+        return probs
 
     def custom_knn_graph(self, x, k, batch=None):
         if x.size(0) == 0:

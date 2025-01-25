@@ -19,6 +19,10 @@ class OverlappingTrianglesLoss(nn.Module):
         vertices = simplified_data["sampled_vertices"]
         faces = simplified_data["simplified_faces"]
 
+        # If no faces, return zero loss
+        if faces.shape[0] == 0:
+            return torch.tensor(0.0, device=vertices.device)
+
         # 1. Sample points from each triangle
         sampled_points = self.sample_points_from_triangles(vertices, faces)
 
@@ -86,8 +90,19 @@ class OverlappingTrianglesLoss(nn.Module):
         # Compute triangle centroids
         centroids = vertices[faces].mean(dim=1)
 
+        # Adjust k to be no larger than the number of triangles
+        k = min(self.k, faces.shape[0])
+        if k == 0:
+            # Return empty tensor if no triangles
+            return torch.empty(
+                (sampled_points.shape[0], 0),
+                dtype=torch.long,
+                device=sampled_points.device,
+            )
+
         # Use knn to find nearest triangles for each sampled point
-        _, indices = torch.cdist(sampled_points, centroids).topk(self.k, largest=False)
+        distances = torch.cdist(sampled_points, centroids)
+        _, indices = distances.topk(k, dim=1, largest=False)
 
         return indices
 

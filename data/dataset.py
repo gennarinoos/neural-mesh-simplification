@@ -91,6 +91,7 @@ def mesh_to_tensor(mesh: trimesh.Trimesh) -> Data:
     # Create Data object
     data = Data(
         x=vertices_tensor,
+        pos=vertices_tensor,
         edge_index=edge_index,
         face=faces_tensor.t(),
         num_nodes=len(mesh.vertices),

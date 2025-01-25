@@ -13,6 +13,20 @@ class EdgeCrossingLoss(nn.Module):
         faces = simplified_data["simplified_faces"]
         face_probs = simplified_data["face_probs"]
 
+        # If no faces, return zero loss
+        if faces.shape[0] == 0:
+            return torch.tensor(0.0, device=vertices.device)
+
+        # Ensure face_probs matches the number of faces
+        if face_probs.shape[0] > faces.shape[0]:
+            face_probs = face_probs[: faces.shape[0]]
+        elif face_probs.shape[0] < faces.shape[0]:
+            # Pad with zeros if we have fewer probabilities than faces
+            padding = torch.zeros(
+                faces.shape[0] - face_probs.shape[0], device=face_probs.device
+            )
+            face_probs = torch.cat([face_probs, padding])
+
         # 1. Find k-nearest triangles for each triangle
         nearest_triangles = self.find_nearest_triangles(vertices, faces)
 

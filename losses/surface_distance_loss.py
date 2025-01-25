@@ -51,6 +51,10 @@ class ProbabilisticSurfaceDistanceLoss(nn.Module):
         simplified_faces: torch.Tensor,
         face_probabilities: torch.Tensor,
     ) -> torch.Tensor:
+        # If there are no faces, return zero loss
+        if simplified_faces.shape[0] == 0:
+            return torch.tensor(0.0, device=original_vertices.device)
+
         simplified_barycenters = self.compute_barycenters(
             simplified_vertices, simplified_faces
         )
@@ -63,6 +67,17 @@ class ProbabilisticSurfaceDistanceLoss(nn.Module):
         )
 
         min_distances, _ = distances.min(dim=1)
+
+        # Ensure face_probabilities matches the number of simplified faces
+        if face_probabilities.shape[0] > simplified_faces.shape[0]:
+            face_probabilities = face_probabilities[: simplified_faces.shape[0]]
+        elif face_probabilities.shape[0] < simplified_faces.shape[0]:
+            # Pad with zeros if we have fewer probabilities than faces
+            padding = torch.zeros(
+                simplified_faces.shape[0] - face_probabilities.shape[0],
+                device=face_probabilities.device,
+            )
+            face_probabilities = torch.cat([face_probabilities, padding])
 
         # Weight distances by face probabilities
         weighted_distances = face_probabilities * min_distances
@@ -84,6 +99,10 @@ class ProbabilisticSurfaceDistanceLoss(nn.Module):
         simplified_faces: torch.Tensor,
         face_probabilities: torch.Tensor,
     ) -> torch.Tensor:
+        # If there are no faces, return zero loss
+        if simplified_faces.shape[0] == 0:
+            return torch.tensor(0.0, device=original_vertices.device)
+
         # If meshes are identical, reverse term should be zero
         if torch.equal(original_vertices, simplified_vertices) and torch.equal(
             original_faces, simplified_faces
@@ -98,29 +117,37 @@ class ProbabilisticSurfaceDistanceLoss(nn.Module):
         # Step 2: Compute the minimum distance from each sampled point to the original mesh
         min_distances_to_original = self.compute_min_distances_to_original(
             sampled_points, original_vertices
-        ).float()  # Ensure distances are floating point
+        ).float()
 
         # Normalize the distances to prevent large values
-        normalized_distances = (
-            min_distances_to_original / min_distances_to_original.max()
+        normalized_distances = min_distances_to_original / (
+            min_distances_to_original.max() + self.epsilon
         )
 
         # Further scaling to reduce the impact
         scaled_distances = normalized_distances * 0.1
 
-        # Debugging output
-        print(
-            f"Scaled min distances to original: {scaled_distances.mean().item()} (mean), {scaled_distances.max().item()} (max), {scaled_distances.min().item()} (min)"
+        # Ensure face_probabilities matches the number of simplified faces
+        if face_probabilities.shape[0] > simplified_faces.shape[0]:
+            face_probabilities = face_probabilities[: simplified_faces.shape[0]]
+        elif face_probabilities.shape[0] < simplified_faces.shape[0]:
+            # Pad with zeros if we have fewer probabilities than faces
+            padding = torch.zeros(
+                simplified_faces.shape[0] - face_probabilities.shape[0],
+                device=face_probabilities.device,
+            )
+            face_probabilities = torch.cat([face_probabilities, padding])
+
+        # Reshape face probabilities to match the sampled points
+        face_probabilities_expanded = face_probabilities.repeat_interleave(
+            self.num_samples
         )
 
-        # Step 3: Weight by face probabilities
-        weighted_min_distances = face_probabilities.view(-1, 1) * scaled_distances
+        # Weight by face probabilities
+        weighted_min_distances = face_probabilities_expanded * scaled_distances
 
         # Return the sum as the reverse term
         reverse_term = weighted_min_distances.sum()
-
-        # Debugging output
-        print(f"Reverse term: {reverse_term.item()}")
 
         return reverse_term
 

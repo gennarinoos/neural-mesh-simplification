@@ -18,6 +18,17 @@ class TriangleCollisionLoss(nn.Module):
         if num_faces == 0:
             return torch.tensor(0.0, device=vertices.device)
 
+        # Ensure face_probabilities matches the number of faces
+        if face_probabilities.shape[0] > num_faces:
+            face_probabilities = face_probabilities[:num_faces]
+        elif face_probabilities.shape[0] < num_faces:
+            # Pad with zeros if we have fewer probabilities than faces
+            padding = torch.zeros(
+                num_faces - face_probabilities.shape[0],
+                device=face_probabilities.device,
+            )
+            face_probabilities = torch.cat([face_probabilities, padding])
+
         collision_count = torch.zeros(num_faces, device=vertices.device)
 
         v0, v1, v2 = vertices[faces[:, 0]], vertices[faces[:, 1]], vertices[faces[:, 2]]
