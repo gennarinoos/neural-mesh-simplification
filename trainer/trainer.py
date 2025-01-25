@@ -94,6 +94,13 @@ class Trainer:
             self._train_one_epoch(epoch)
             val_loss = self._validate(epoch)
             self.scheduler.step(val_loss)
+
+            # Apply weight decay after each epoch (as per paper)
+            weight_decay = self.config["training"]["weight_decay"]
+            with torch.no_grad():
+                for param in self.model.parameters():
+                    param.data *= weight_decay
+
             self._save_checkpoint(epoch, val_loss)
             if self._early_stopping(val_loss):
                 logging.info("Early stopping triggered.")

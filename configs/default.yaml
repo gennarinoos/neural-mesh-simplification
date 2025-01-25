@@ -11,6 +11,7 @@ model:
 # Training parameters
 training:
   learning_rate: 1.0e-5
+  weight_decay: 0.99 # weight decay per epoch (as per paper)
   batch_size: 1 # process full meshes
   num_epochs: 150 # total training epochs
   early_stopping_patience: 15 # epochs before early stopping
