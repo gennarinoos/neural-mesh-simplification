@@ -15,7 +15,13 @@ def sample_data():
 
 
 def test_neural_mesh_simplification_forward(sample_data):
-    model = NeuralMeshSimplification(input_dim=3, hidden_dim=64, num_layers=3, k=5)
+    model = NeuralMeshSimplification(
+        input_dim=3,
+        hidden_dim=64,
+        edge_hidden_dim=64,  # Add edge-specific hidden dimension
+        num_layers=3,
+        k=5,
+    )
     output = model(sample_data)
 
     # Add assertions to check the output structure and shapes
@@ -89,7 +95,13 @@ def test_neural_mesh_simplification_forward(sample_data):
 
 
 def test_generate_candidate_triangles():
-    model = NeuralMeshSimplification(input_dim=3, hidden_dim=64, num_layers=3, k=5)
+    model = NeuralMeshSimplification(
+        input_dim=3,
+        hidden_dim=64,
+        edge_hidden_dim=64,  # Add edge-specific hidden dimension
+        num_layers=3,
+        k=5,
+    )
     edge_index = torch.tensor(
         [[0, 1, 1, 2, 3, 4], [1, 0, 2, 1, 4, 3]], dtype=torch.long
     )
