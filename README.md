@@ -70,6 +70,12 @@ To train the model on your own dataset:
 python ./scripts/train.py --data_dir /path/to/your/dataset --config /path/to/config.yaml --checkpoint_dir /path/to/checkpoints
 ```
 
+To use default paths and config, you can run:
+
+```base
+uv run python3 scripts/train.py --data_dir data/processed/ --config configs/default.yaml
+```
+
 ## Evaluation
 
 To evaluate the model on a test set:
