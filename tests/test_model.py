@@ -1,11 +1,12 @@
-import torch
 import pytest
+import torch
 from torch_geometric.data import Data
-from models import NeuralMeshSimplification
+
+from neural_mesh_simplification.models import NeuralMeshSimplification
 
 
 @pytest.fixture
-def sample_data():
+def sample_data() -> Data:
     x = torch.randn(10, 3)
     edge_index = torch.tensor(
         [[0, 1, 1, 2, 3, 4], [1, 0, 2, 1, 4, 3]], dtype=torch.long
@@ -14,14 +15,8 @@ def sample_data():
     return Data(x=x, edge_index=edge_index, pos=pos)
 
 
-def test_neural_mesh_simplification_forward(sample_data):
-    model = NeuralMeshSimplification(
-        input_dim=3,
-        hidden_dim=64,
-        edge_hidden_dim=64,  # Add edge-specific hidden dimension
-        num_layers=3,
-        k=5,
-    )
+def test_neural_mesh_simplification_forward(sample_data: Data):
+    model = NeuralMeshSimplification(input_dim=3, hidden_dim=64, edge_hidden_dim=64)
     output = model(sample_data)
 
     # Add assertions to check the output structure and shapes
@@ -43,7 +38,7 @@ def test_neural_mesh_simplification_forward(sample_data):
     assert output["sampled_vertices"].shape[1] == 3  # 3D coordinates
     assert output["edge_index"].shape[0] == 2  # Source and target nodes
     assert (
-        len(output["edge_probs"]) == output["edge_index"].shape[1]
+            len(output["edge_probs"]) == output["edge_index"].shape[1]
     )  # One prob per edge
     assert output["candidate_triangles"].shape[1] == 3  # Triangle indices
     assert len(output["triangle_probs"]) == len(
@@ -56,19 +51,19 @@ def test_neural_mesh_simplification_forward(sample_data):
 
     # Additional checks
     assert (
-        output["sampled_indices"].shape[0] <= 10
+            output["sampled_indices"].shape[0] <= 10
     )  # number of sampled points should be less than or equal to input
     assert (
-        output["sampled_vertices"].shape[0] == output["sampled_indices"].shape[0]
+            output["sampled_vertices"].shape[0] == output["sampled_indices"].shape[0]
     )  # New check
     assert (
-        output["edge_index"].shape[1] == output["edge_probs"].shape[0]
+            output["edge_index"].shape[1] == output["edge_probs"].shape[0]
     )  # number of edges should match number of edge probabilities
     assert (
-        output["candidate_triangles"].shape[0] == output["triangle_probs"].shape[0]
+            output["candidate_triangles"].shape[0] == output["triangle_probs"].shape[0]
     )  # number of candidate triangles should match number of triangle probabilities
     assert (
-        output["simplified_faces"].shape[0] <= output["candidate_triangles"].shape[0]
+            output["simplified_faces"].shape[0] <= output["candidate_triangles"].shape[0]
     )  # New check
 
     # Check that sampled_vertices are a subset of the original vertices
@@ -95,13 +90,7 @@ def test_neural_mesh_simplification_forward(sample_data):
 
 
 def test_generate_candidate_triangles():
-    model = NeuralMeshSimplification(
-        input_dim=3,
-        hidden_dim=64,
-        edge_hidden_dim=64,  # Add edge-specific hidden dimension
-        num_layers=3,
-        k=5,
-    )
+    model = NeuralMeshSimplification(input_dim=3, hidden_dim=64, edge_hidden_dim=64)
     edge_index = torch.tensor(
         [[0, 1, 1, 2, 3, 4], [1, 0, 2, 1, 4, 3]], dtype=torch.long
     )
@@ -119,9 +108,9 @@ def test_generate_candidate_triangles():
 
     max_possible_triangles = edge_index.max().item() + 1  # num_nodes
     max_possible_triangles = (
-        max_possible_triangles
-        * (max_possible_triangles - 1)
-        * (max_possible_triangles - 2)
-        // 6
+            max_possible_triangles
+            * (max_possible_triangles - 1)
+            * (max_possible_triangles - 2)
+            // 6
     )
     assert triangles.shape[0] <= max_possible_triangles

@@ -15,11 +15,11 @@ training:
   batch_size: 1 # process full meshes
   num_epochs: 150 # total training epochs
   early_stopping_patience: 15 # epochs before early stopping
-  checkpoint_dir: "checkpoints" # model save directory
+  checkpoint_dir: data/checkpoints # model save directory
 
 # Data parameters
 data:
-  data_dir: "data/processed"
+  data_dir: data/processed
   val_split: 0.2
   num_workers: 4 # dataloader workers
 

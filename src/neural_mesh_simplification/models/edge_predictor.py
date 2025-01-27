@@ -3,11 +3,12 @@ import torch.nn as nn
 from torch_geometric.nn import knn_graph
 from torch_scatter import scatter_softmax
 from torch_sparse import SparseTensor
+
 from .layers.devconv import DevConv
 
 
 class EdgePredictor(nn.Module):
-    def __init__(self, in_channels, hidden_channels=64, k=15):
+    def __init__(self, in_channels, hidden_channels, k):
         super(EdgePredictor, self).__init__()
         self.k = k
         self.devconv = DevConv(in_channels, hidden_channels)
@@ -60,6 +61,7 @@ class EdgePredictor(nn.Module):
             ), torch.empty(0, device=edge_index.device)
 
         num_nodes = attention_scores.size(0)
+
         row, col = edge_index
 
         # Create sparse attention matrix
@@ -67,7 +69,8 @@ class EdgePredictor(nn.Module):
             row=row,
             col=col,
             value=attention_scores,
-            sparse_sizes=(num_nodes, num_nodes),
+            # sparse_sizes=(num_nodes - row_offset, num_nodes - col_offset),
+            sparse_sizes=(num_nodes, num_nodes)
         )
 
         # Create original adjacency matrix
@@ -75,7 +78,7 @@ class EdgePredictor(nn.Module):
             row=row,
             col=col,
             value=torch.ones(edge_index.size(1), device=edge_index.device),
-            sparse_sizes=(num_nodes, num_nodes),
+            sparse_sizes=(num_nodes, num_nodes)
         )
 
         # Compute A_s = S * A * S^T
@@ -83,6 +86,7 @@ class EdgePredictor(nn.Module):
 
         # Convert to COO format
         row, col, value = A_s.coo()
+
         indices = torch.stack([row, col], dim=0)
 
         return indices, value

@@ -2,7 +2,7 @@ import trimesh
 import numpy as np
 import networkx as nx
 from torch_geometric.data import Data
-from data.dataset import (
+from neural_mesh_simplification.data.dataset import (
     MeshSimplificationDataset,
     preprocess_mesh,
     mesh_to_tensor,

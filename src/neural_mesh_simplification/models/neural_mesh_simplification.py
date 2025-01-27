@@ -2,25 +2,26 @@ import torch
 import torch.nn as nn
 import torch_geometric
 from torch_geometric.data import Data
-from models import PointSampler, EdgePredictor, FaceClassifier
+
+from ..models import PointSampler, EdgePredictor, FaceClassifier
 
 
 class NeuralMeshSimplification(nn.Module):
     def __init__(
-        self,
-        input_dim,
-        hidden_dim=128,
-        edge_hidden_dim=64,  # Separate hidden dim for edge predictor
-        num_layers=3,
-        k=15,
-        edge_k=15,
-        target_ratio=0.5,
+            self,
+            input_dim,
+            hidden_dim,
+            edge_hidden_dim,  # Separate hidden dim for edge predictor
+            num_layers=3,
+            k=5,
+            edge_k=15,
+            target_ratio=0.5
     ):
         super(NeuralMeshSimplification, self).__init__()
         self.point_sampler = PointSampler(input_dim, hidden_dim)
         self.edge_predictor = EdgePredictor(
             input_dim,
-            hidden_channels=edge_hidden_dim,  # Use correct parameter name
+            hidden_channels=edge_hidden_dim,
             k=edge_k,
         )
         self.face_classifier = FaceClassifier(input_dim, hidden_dim, num_layers, k)
@@ -31,17 +32,9 @@ class NeuralMeshSimplification(nn.Module):
         x, edge_index = data.x, data.edge_index
         num_nodes = x.size(0)
 
-        # Sample points
-        sampled_probs = self.point_sampler(x, edge_index)
-        num_samples = min(
-            max(int(self.target_ratio * num_nodes), 1),
-            num_nodes,
-        )
-        sampled_indices = torch.multinomial(
-            sampled_probs, num_samples=num_samples, replacement=False
-        )
-        sampled_indices = torch.clamp(sampled_indices, 0, num_nodes - 1)
-        sampled_indices = torch.unique(sampled_indices)
+        # Uncomment this line to avoid point sampling
+        # sampled_indices, sampled_probs = torch.arange(0, num_nodes), torch.ones(num_nodes)
+        sampled_indices, sampled_probs = self.sample_points(data)
 
         # Get probabilities for sampled vertices
         sampled_vertex_probs = sampled_probs[sampled_indices]
@@ -78,7 +71,6 @@ class NeuralMeshSimplification(nn.Module):
             for i in range(3):
                 triangle_features += sampled_x[candidate_triangles[:, i]]
             triangle_features /= 3
-
             # Calculate triangle centers
             triangle_centers = torch.zeros(
                 (candidate_triangles.shape[0], sampled_pos.shape[1]),
@@ -87,7 +79,6 @@ class NeuralMeshSimplification(nn.Module):
             for i in range(3):
                 triangle_centers += sampled_pos[candidate_triangles[:, i]]
             triangle_centers /= 3
-
             face_probs = self.face_classifier(
                 triangle_features, triangle_centers, batch=None
             )
@@ -99,7 +90,7 @@ class NeuralMeshSimplification(nn.Module):
                 (0, 3), dtype=torch.long, device=data.x.device
             )
         else:
-            simplified_faces = candidate_triangles[face_probs > 0.5]
+            simplified_faces = candidate_triangles[triangle_probs > 0.5]
 
         return {
             "sampled_indices": sampled_indices,
@@ -112,6 +103,24 @@ class NeuralMeshSimplification(nn.Module):
             "face_probs": face_probs,
             "simplified_faces": simplified_faces,
         }
+
+    def sample_points(self, data: Data):
+        x, edge_index = data.x, data.edge_index
+        num_nodes = x.size(0)
+
+        # Sample points
+        sampled_probs = self.point_sampler(x, edge_index)
+        num_samples = min(
+            max(int(self.target_ratio * num_nodes), 1),
+            num_nodes,
+        )
+        sampled_indices = torch.multinomial(
+            sampled_probs, num_samples=num_samples, replacement=False
+        )
+        sampled_indices = torch.clamp(sampled_indices, 0, num_nodes - 1)
+        sampled_indices = torch.unique(sampled_indices)
+
+        return sampled_indices, sampled_probs
 
     def generate_candidate_triangles(self, edge_index, edge_probs):
         device = edge_index.device
@@ -155,8 +164,8 @@ class NeuralMeshSimplification(nn.Module):
 
                         # Calculate triangle probability
                         prob = (
-                            adj_matrix[i, n1] * adj_matrix[i, n2] * adj_matrix[n1, n2]
-                        ) ** (1 / 3)
+                                       adj_matrix[i, n1] * adj_matrix[i, n2] * adj_matrix[n1, n2]
+                               ) ** (1 / 3)
                         triangle_probs.append(prob)
 
         if triangles:

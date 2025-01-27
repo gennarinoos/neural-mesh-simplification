@@ -1,6 +1,6 @@
 import torch
 import pytest
-from losses.surface_distance_loss import ProbabilisticSurfaceDistanceLoss
+from neural_mesh_simplification.losses.surface_distance_loss import ProbabilisticSurfaceDistanceLoss
 
 
 @pytest.fixture

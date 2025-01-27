@@ -1,5 +1,6 @@
 import torch.nn as nn
-from losses import (
+
+from . import (
     ProbabilisticChamferDistanceLoss,
     ProbabilisticSurfaceDistanceLoss,
     TriangleCollisionLoss,
@@ -10,7 +11,7 @@ from losses import (
 
 class CombinedMeshSimplificationLoss(nn.Module):
     def __init__(
-        self, lambda_c: float = 1.0, lambda_e: float = 1.0, lambda_o: float = 1.0
+            self, lambda_c: float = 1.0, lambda_e: float = 1.0, lambda_o: float = 1.0
     ):
         super().__init__()
         self.prob_chamfer_loss = ProbabilisticChamferDistanceLoss()
@@ -44,11 +45,11 @@ class CombinedMeshSimplificationLoss(nn.Module):
         overlapping_triangles_loss = self.overlapping_triangles_loss(simplified_data)
 
         total_loss = (
-            chamfer_loss
-            + surface_loss
-            + self.lambda_c * collision_loss
-            + self.lambda_e * edge_crossing_loss
-            + self.lambda_o * overlapping_triangles_loss
+                chamfer_loss
+                + surface_loss
+                + self.lambda_c * collision_loss
+                + self.lambda_e * edge_crossing_loss
+                + self.lambda_o * overlapping_triangles_loss
         )
 
         return total_loss
