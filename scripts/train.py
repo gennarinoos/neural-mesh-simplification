@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 
 from neural_mesh_simplification.trainer.trainer import Trainer
@@ -11,6 +12,7 @@ def parse_args():
     parser.add_argument("--checkpoint_dir", type=str, default="checkpoints",
                         help="Directory to save model checkpoints.")
     parser.add_argument("--resume", type=str, default=None, help="Path to a checkpoint to resume training from.")
+    parser.add_argument("--debug", action='store_true', help="Show debug logs")
     return parser.parse_args()
 
 
@@ -26,6 +28,11 @@ def main():
     config = load_config(args.config)
     config["data"]["data_path"] = args.data_path
     config["training"]["checkpoint_dir"] = args.checkpoint_dir
+
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
 
     if not os.path.exists(args.checkpoint_dir):
         os.makedirs(args.checkpoint_dir)

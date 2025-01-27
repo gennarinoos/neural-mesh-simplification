@@ -1,5 +1,4 @@
 import argparse
-import os
 
 from trimesh import Trimesh
 
@@ -9,7 +8,8 @@ from neural_mesh_simplification.data.dataset import load_mesh
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Simplify a 3D mesh using a trained model.")
-    parser.add_argument('--input-file', type=str, required=True, help="Path to the input `.obj` file.")
+    parser.add_argument('--input-file', type=str, required=True, help="Path to the input mesh file.")
+    parser.add_argument('--output-file', type=str, required=True, help="Where to save the simplified mesh.")
     parser.add_argument('--hidden-dim', type=int, required=False, default=128,
                         help="Feature dimension for point sampler and face classifier")
     parser.add_argument('--edge-hidden-dim', type=int, required=False, default=64,
@@ -22,6 +22,7 @@ def parse_args():
 
 def simplify_mesh(
         input_file: str,
+        output_file: str,
         model_checkpoint: str,
         hidden_dim: int,
         edge_hidden_dim: int,
@@ -57,11 +58,6 @@ def simplify_mesh(
 
     simplified_mesh = simplifier.simplify(original_mesh)
 
-    directory, filename = os.path.split(input_file)
-    name, extension = os.path.splitext(filename)
-    new_filename = f"{name}_simplified{extension}"  # Append '_simplified' to the name
-    output_file = os.path.join(directory, new_filename)  # Combine back into a full path
-
     # Save the simplified mesh
     print(f"Saving simplified mesh to {output_file}...")
     simplified_mesh.export(output_file)
@@ -80,6 +76,7 @@ def main():
 
     simplify_mesh(
         input_file=args.input_file,
+        output_file=args.output_file,
         model_checkpoint=args.model_checkpoint,
         hidden_dim=args.hidden_dim,
         edge_hidden_dim=args.edge_hidden_dim,

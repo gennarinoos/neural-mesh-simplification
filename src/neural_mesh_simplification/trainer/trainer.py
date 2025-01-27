@@ -13,8 +13,6 @@ from ..losses import CombinedMeshSimplificationLoss
 from ..metrics import chamfer_distance, normal_consistency, edge_preservation, hausdorff_distance
 from ..models import NeuralMeshSimplification
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -123,7 +121,7 @@ class Trainer:
 
                 if (batch_idx + 1) % 10 == 0:
                     logger.info(f"Batch {batch_idx + 1} - Loss: {loss.item():.4f}")
-                
+
             except Exception as e:
                 logger.error(f"Error in batch {batch_idx + 1}: {str(e)}")
                 raise e

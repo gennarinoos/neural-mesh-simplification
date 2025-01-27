@@ -82,10 +82,10 @@ To train the model on your own dataset with the prepared data:
 python ./scripts/train.py --data_path data/processed --config configs/default.yaml
 ```
 
-Specify a different `--data_path` if you have your data in a different location.
-You can use the default training config at `scripts/train_config.yml` or specify a different one with `--config_path`.
+Specify a different `--data_path` if you have your data in a different location.\
+You can use the default training config at `scripts/train_config.yml` or specify a different one with `--config_path`.\
 You can also override the checkpoint directory specified in the config file (where the model will be saved) with
-`--checkpoint_dir`.
+`--checkpoint_dir`.\
 If the training was interrupted, you can resume it by specifying the path to the checkpoint with `--resume`.
 
 ### Evaluation
@@ -101,10 +101,12 @@ python ./scripts/evaluate.py --config configs/default.yaml --eval_data_path /pat
 To simplify a mesh using the trained model:
 
 ```bash
-python ./scripts/inference.py --input-file /path/to/your/mesh.obj --model-checkpoint /path/to/checkpoint.pth --device cpu
+python ./scripts/infer.py --input-file /path/to/your/mesh.obj --output-file --model-checkpoint /path/to/checkpoint.pth --device cpu
 ```
 
-This will create a file next to the input file with suffix `_simplified`
+The default feature dimension for point sampler and face classifier is 128, but can be configured with
+`--hidden-dim <num>`.\
+The default feature dimension for edge predictor is 64, but can be configured with `--edge-hidden-dim <num>`.\
 If you have a CUDA-compatible GPU, you can specify `--device cuda` to use it for inference.
 
 ### Citation
@@ -125,3 +127,4 @@ If you use this code in your research, please cite the original paper:
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+m
