@@ -1,12 +1,4 @@
-# Mesh AI Assist
-
-A collection of AI tools to work with 3D Meshes.
-
-1. Neural Mesh Simplification
-
----
-
-## 1. Neural Mesh Simplification
+# Neural Mesh Simplification
 
 Implementation of the
 paper [Neural Mesh Simplification paper](https://openaccess.thecvf.com/content/CVPR2022/papers/Potamias_Neural_Mesh_Simplification_CVPR_2022_paper.pdf)
