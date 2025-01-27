@@ -69,7 +69,6 @@ class EdgePredictor(nn.Module):
             row=row,
             col=col,
             value=attention_scores,
-            # sparse_sizes=(num_nodes - row_offset, num_nodes - col_offset),
             sparse_sizes=(num_nodes, num_nodes)
         )
 

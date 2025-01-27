@@ -71,6 +71,7 @@ class NeuralMeshSimplification(nn.Module):
             for i in range(3):
                 triangle_features += sampled_x[candidate_triangles[:, i]]
             triangle_features /= 3
+
             # Calculate triangle centers
             triangle_centers = torch.zeros(
                 (candidate_triangles.shape[0], sampled_pos.shape[1]),
@@ -79,6 +80,7 @@ class NeuralMeshSimplification(nn.Module):
             for i in range(3):
                 triangle_centers += sampled_pos[candidate_triangles[:, i]]
             triangle_centers /= 3
+            
             face_probs = self.face_classifier(
                 triangle_features, triangle_centers, batch=None
             )
@@ -90,7 +92,7 @@ class NeuralMeshSimplification(nn.Module):
                 (0, 3), dtype=torch.long, device=data.x.device
             )
         else:
-            simplified_faces = candidate_triangles[triangle_probs > 0.5]
+            simplified_faces = candidate_triangles[face_probs > 0.5]
 
         return {
             "sampled_indices": sampled_indices,

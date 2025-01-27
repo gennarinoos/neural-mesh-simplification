@@ -114,13 +114,16 @@ class Trainer:
             try:
                 self.optimizer.zero_grad()
                 batch = batch.to(self.device)
+
                 output = self.model(batch)
                 loss = self.criterion(batch, output)
                 loss.backward()
                 self.optimizer.step()
                 running_loss += loss.item()
+
                 if (batch_idx + 1) % 10 == 0:
                     logger.info(f"Batch {batch_idx + 1} - Loss: {loss.item():.4f}")
+                
             except Exception as e:
                 logger.error(f"Error in batch {batch_idx + 1}: {str(e)}")
                 raise e
