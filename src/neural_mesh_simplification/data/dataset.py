@@ -1,11 +1,14 @@
 import os
+from typing import Optional
+
+import numpy as np
 import torch
 import trimesh
-import numpy as np
-from typing import Optional
 from torch.utils.data import Dataset
 from torch_geometric.data import Data
-from utils.mesh_operations import build_graph_from_mesh
+from trimesh import Geometry, Trimesh
+
+from ..utils.mesh_operations import build_graph_from_mesh
 
 
 class MeshSimplificationDataset(Dataset):
@@ -36,7 +39,7 @@ class MeshSimplificationDataset(Dataset):
         return data
 
 
-def load_mesh(file_path: str) -> trimesh.Trimesh:
+def load_mesh(file_path: str) -> Geometry | list[Geometry] | None:
     """Load a mesh from file."""
     try:
         mesh = trimesh.load(file_path)
@@ -46,7 +49,7 @@ def load_mesh(file_path: str) -> trimesh.Trimesh:
         return None
 
 
-def preprocess_mesh(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
+def preprocess_mesh(mesh: trimesh.Trimesh) -> Trimesh | None:
     """Preprocess a mesh (e.g., normalize, center)."""
     if mesh is None:
         return None
@@ -61,7 +64,7 @@ def preprocess_mesh(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
     return mesh
 
 
-def augment_mesh(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
+def augment_mesh(mesh: trimesh.Trimesh) -> Trimesh | None:
     """Apply data augmentation to a mesh."""
     if mesh is None:
         return None

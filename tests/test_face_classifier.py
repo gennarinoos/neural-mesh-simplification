@@ -1,6 +1,6 @@
 import torch
 import pytest
-from models.face_classifier import FaceClassifier
+from neural_mesh_simplification.models.face_classifier import FaceClassifier
 
 
 @pytest.fixture

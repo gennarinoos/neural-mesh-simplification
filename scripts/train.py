@@ -1,47 +1,23 @@
 import argparse
+import logging
 import os
-import sys
 
-# Add the root directory of your project to the Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from trainer import Trainer
+from neural_mesh_simplification.trainer.trainer import Trainer
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Train the Neural Mesh Simplification model."
-    )
-    parser.add_argument(
-        "--data_dir",
-        type=str,
-        required=True,
-        help="Path to the training data directory.",
-    )
-    parser.add_argument(
-        "--config",
-        type=str,
-        required=True,
-        help="Path to the training configuration file.",
-    )
-    parser.add_argument(
-        "--checkpoint_dir",
-        type=str,
-        default="checkpoints",
-        help="Directory to save model checkpoints.",
-    )
-    parser.add_argument(
-        "--resume",
-        type=str,
-        default=None,
-        help="Path to a checkpoint to resume training from.",
-    )
+    parser = argparse.ArgumentParser(description="Train the Neural Mesh Simplification model.")
+    parser.add_argument("--data_path", type=str, required=True, help="Path to the training data directory.")
+    parser.add_argument("--config", type=str, required=True, help="Path to the training configuration file.")
+    parser.add_argument("--checkpoint_dir", type=str, default="checkpoints",
+                        help="Directory to save model checkpoints.")
+    parser.add_argument("--resume", type=str, default=None, help="Path to a checkpoint to resume training from.")
+    parser.add_argument("--debug", action='store_true', help="Show debug logs")
     return parser.parse_args()
 
 
 def load_config(config_path):
     import yaml
-
     with open(config_path, "r") as file:
         config = yaml.safe_load(file)
     return config
@@ -50,8 +26,16 @@ def load_config(config_path):
 def main():
     args = parse_args()
     config = load_config(args.config)
-    config["data"]["data_dir"] = args.data_dir
+    config["data"]["data_path"] = args.data_path
     config["training"]["checkpoint_dir"] = args.checkpoint_dir
+
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
+
+    if not os.path.exists(args.checkpoint_dir):
+        os.makedirs(args.checkpoint_dir)
 
     trainer = Trainer(config)
 
@@ -62,9 +46,7 @@ def main():
         trainer.train()
     except Exception as e:
         trainer.handle_error(e)
-        trainer.save_training_state(
-            os.path.join(args.checkpoint_dir, "training_state.pth")
-        )
+        trainer.save_training_state(os.path.join(args.checkpoint_dir, "training_state.pth"))
 
 
 if __name__ == "__main__":

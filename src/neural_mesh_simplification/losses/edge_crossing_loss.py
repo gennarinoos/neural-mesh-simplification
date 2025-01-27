@@ -16,7 +16,6 @@ class EdgeCrossingLoss(nn.Module):
         # If no faces, return zero loss
         if faces.shape[0] == 0:
             return torch.tensor(0.0, device=vertices.device)
-
         # Ensure face_probs matches the number of faces
         if face_probs.shape[0] > faces.shape[0]:
             face_probs = face_probs[: faces.shape[0]]
@@ -39,7 +38,7 @@ class EdgeCrossingLoss(nn.Module):
         return loss
 
     def find_nearest_triangles(
-        self, vertices: torch.Tensor, faces: torch.Tensor
+            self, vertices: torch.Tensor, faces: torch.Tensor
     ) -> torch.Tensor:
         # Compute triangle centroids
         centroids = vertices[faces].mean(dim=1)
@@ -70,10 +69,10 @@ class EdgeCrossingLoss(nn.Module):
         return nearest
 
     def detect_edge_crossings(
-        self,
-        vertices: torch.Tensor,
-        faces: torch.Tensor,
-        nearest_triangles: torch.Tensor,
+            self,
+            vertices: torch.Tensor,
+            faces: torch.Tensor,
+            nearest_triangles: torch.Tensor,
     ) -> torch.Tensor:
         def edges_of_triangle(triangle):
             # Extracts the edges from a triangle defined by vertex indices
@@ -141,7 +140,7 @@ class EdgeCrossingLoss(nn.Module):
         return crossings
 
     def calculate_loss(
-        self, crossings: torch.Tensor, face_probs: torch.Tensor
+            self, crossings: torch.Tensor, face_probs: torch.Tensor
     ) -> torch.Tensor:
         # Weighted sum of crossings by triangle probabilities
         loss = torch.sum(face_probs * crossings)

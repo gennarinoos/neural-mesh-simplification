@@ -1,5 +1,6 @@
 import torch.nn as nn
-from losses import (
+
+from . import (
     ProbabilisticChamferDistanceLoss,
     ProbabilisticSurfaceDistanceLoss,
     TriangleCollisionLoss,
@@ -10,7 +11,7 @@ from losses import (
 
 class CombinedMeshSimplificationLoss(nn.Module):
     def __init__(
-        self, lambda_c: float = 1.0, lambda_e: float = 1.0, lambda_o: float = 1.0
+            self, lambda_c: float = 1.0, lambda_e: float = 1.0, lambda_o: float = 1.0
     ):
         super().__init__()
         self.prob_chamfer_loss = ProbabilisticChamferDistanceLoss()
@@ -23,20 +24,26 @@ class CombinedMeshSimplificationLoss(nn.Module):
         self.lambda_o = lambda_o
 
     def forward(self, original_data, simplified_data):
+        original_x = original_data["pos"] if "pos" in original_data else original_data["x"]
+        original_face = original_data["face"]
+        sampled_indices = simplified_data["sampled_indices"]
+        sampled_vertices = simplified_data["sampled_vertices"]
+        sampled_probs = simplified_data["sampled_probs"][sampled_indices]
+
         chamfer_loss = self.prob_chamfer_loss(
-            original_data["pos"],
-            simplified_data["sampled_vertices"],
-            simplified_data["sampled_probs"],
+            original_x,
+            sampled_vertices,
+            sampled_probs
         )
         surface_loss = self.prob_surface_loss(
-            original_data["pos"],
-            original_data["face"],
-            simplified_data["sampled_vertices"],
+            original_x,
+            original_face,
+            sampled_vertices,
             simplified_data["simplified_faces"],
             simplified_data["face_probs"],
         )
         collision_loss = self.collision_loss(
-            simplified_data["sampled_vertices"],
+            sampled_vertices,
             simplified_data["simplified_faces"],
             simplified_data["face_probs"],
         )
@@ -44,11 +51,11 @@ class CombinedMeshSimplificationLoss(nn.Module):
         overlapping_triangles_loss = self.overlapping_triangles_loss(simplified_data)
 
         total_loss = (
-            chamfer_loss
-            + surface_loss
-            + self.lambda_c * collision_loss
-            + self.lambda_e * edge_crossing_loss
-            + self.lambda_o * overlapping_triangles_loss
+                chamfer_loss
+                + surface_loss
+                + self.lambda_c * collision_loss
+                + self.lambda_e * edge_crossing_loss
+                + self.lambda_o * overlapping_triangles_loss
         )
 
         return total_loss

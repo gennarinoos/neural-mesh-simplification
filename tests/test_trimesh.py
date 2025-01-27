@@ -1,8 +1,6 @@
 import trimesh
 import pytest
 
-
-@pytest.mark.skip(reason="Skipping trimesh tests. Run with trimesh mark to run.")
 @pytest.mark.trimesh
 class TestMeshCreation:
     def test_sphere(self):

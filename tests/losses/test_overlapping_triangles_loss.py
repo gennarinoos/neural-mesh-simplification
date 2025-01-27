@@ -1,6 +1,6 @@
 import torch
 import pytest
-from losses import OverlappingTrianglesLoss
+from neural_mesh_simplification.losses import OverlappingTrianglesLoss
 
 
 @pytest.fixture

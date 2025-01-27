@@ -1,8 +1,8 @@
 import pytest
 import torch
 from torch import nn
-from models.layers.devconv import DevConv
-from models.point_sampler import PointSampler
+from neural_mesh_simplification.models.layers.devconv import DevConv
+from neural_mesh_simplification.models.point_sampler import PointSampler
 
 
 @pytest.fixture
