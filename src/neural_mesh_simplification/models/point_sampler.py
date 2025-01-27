@@ -1,10 +1,11 @@
 import torch
 import torch.nn as nn
+
 from .layers.devconv import DevConv
 
 
 class PointSampler(nn.Module):
-    def __init__(self, in_channels=3, out_channels=64, num_layers=3):
+    def __init__(self, in_channels, out_channels, num_layers):
         super(PointSampler, self).__init__()
         self.num_layers = num_layers
 
