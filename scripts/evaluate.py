@@ -5,8 +5,8 @@ from neural_mesh_simplification.trainer.trainer import Trainer
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate the Neural Mesh Simplification model.")
-    parser.add_argument("--eval_data_path", type=str, required=True, help="Path to the evaluation data directory.")
-    parser.add_argument("--config", type=str, required=True, help="Path to the evaluation configuration file.")
+    parser.add_argument("--eval-data-path", type=str, required=True, help="Path to the evaluation data directory.")
+    parser.add_argument("--config", type=str, required=False, help="Path to the evaluation configuration file.")
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to the model checkpoint.")
     return parser.parse_args()
 

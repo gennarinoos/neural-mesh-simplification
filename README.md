@@ -79,22 +79,31 @@ You can use the `--data_path` argument to specify the path to the dataset. The s
 To train the model on your own dataset with the prepared data:
 
 ```bash
-python ./scripts/train.py --data_path data/processed --config configs/default.yaml
+python ./scripts/train.py
 ```
 
-Specify a different `--data_path` if you have your data in a different location.\
-You can use the default training config at `scripts/train_config.yml` or specify a different one with `--config_path`.\
-You can also override the checkpoint directory specified in the config file (where the model will be saved) with
-`--checkpoint_dir`.\
-If the training was interrupted, you can resume it by specifying the path to the checkpoint with `--resume`.
+By default, the default training config at `config/default.yaml` will be used. You can override it with
+`--config /path/to/your/config.yaml`.\
+You can override the following config parameters:
+
+* the checkpoint directory specified in the config file (where the model will be saved) with
+  `--checkpoint-dir`.
+* the data path with `--data-path` if you have your data in a different location.
+
+If the training was interrupted, you can resume it by specifying the path to the previously created checkpoint directory
+with `--resume`.\
+Use `--debug` to see DEBUG logging.
 
 ### Evaluation
 
 To evaluate the model on a test set:
 
 ```bash
-python ./scripts/evaluate.py --config configs/default.yaml --eval_data_path /path/to/test/set --checkpoint /path/to/checkpoint.pth
+python ./scripts/evaluate.py --eval-data-path /path/to/test/set --checkpoint /path/to/checkpoint.pth
 ```
+
+By default, the default training config at `config/default.yaml` will be used. You can override it with
+`--config /path/to/your/config.yaml`.
 
 ### Inference
 
