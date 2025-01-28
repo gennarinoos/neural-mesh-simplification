@@ -9,9 +9,6 @@ class ProbabilisticSurfaceDistanceLoss(nn.Module):
         self.k = k
         self.num_samples = num_samples
         self.epsilon = epsilon
-        print(
-            f"Initialized ProbabilisticSurfaceDistanceLoss with k={self.k}, num_samples={self.num_samples}"
-        )
 
     def forward(
             self,
