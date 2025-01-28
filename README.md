@@ -69,7 +69,7 @@ You can use `--target-folder` to specify a different folder.
 Once you have some data, you should preprocess it using the following script:
 
 ```bash
-python scripts/preprocess.py
+python scripts/preprocess_data.py
 ```
 
 You can use the `--data_path` argument to specify the path to the dataset. The script will create a `data/processed`
