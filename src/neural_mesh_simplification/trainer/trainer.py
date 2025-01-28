@@ -5,7 +5,7 @@ from typing import Dict, Any
 import torch
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import random_split
 from torch_geometric.loader import DataLoader
 
 from ..data import MeshSimplificationDataset
