@@ -8,14 +8,14 @@ from ..models import PointSampler, EdgePredictor, FaceClassifier
 
 class NeuralMeshSimplification(nn.Module):
     def __init__(
-            self,
-            input_dim,
-            hidden_dim,
-            edge_hidden_dim,  # Separate hidden dim for edge predictor
-            num_layers=3,
-            k=5,
-            edge_k=15,
-            target_ratio=0.5
+        self,
+        input_dim,
+        hidden_dim,
+        edge_hidden_dim,  # Separate hidden dim for edge predictor
+        num_layers=3,
+        k=5,
+        edge_k=15,
+        target_ratio=0.5,
     ):
         super(NeuralMeshSimplification, self).__init__()
         self.point_sampler = PointSampler(input_dim, hidden_dim)
@@ -107,19 +107,18 @@ class NeuralMeshSimplification(nn.Module):
         x, edge_index = data.x, data.edge_index
         num_nodes = x.size(0)
 
-        # Sample points
-        sampled_probs = self.point_sampler(x, edge_index)
-        num_samples = min(
+        target_nodes = min(
             max(int(self.target_ratio * num_nodes), 1),
             num_nodes,
         )
-        sampled_indices = torch.multinomial(
-            sampled_probs, num_samples=num_samples, replacement=False
-        )
-        sampled_indices = torch.clamp(sampled_indices, 0, num_nodes - 1)
-        sampled_indices = torch.unique(sampled_indices)
 
-        return sampled_indices, sampled_probs
+        # Sample points
+        sampled_probs = self.point_sampler(x, edge_index)
+        sampled_indices = self.point_sampler.sample(
+            sampled_probs, num_samples=target_nodes
+        )
+
+        return sampled_indices, sampled_probs[sampled_indices]
 
     def generate_candidate_triangles(self, edge_index, edge_probs):
         device = edge_index.device
@@ -163,8 +162,8 @@ class NeuralMeshSimplification(nn.Module):
 
                         # Calculate triangle probability
                         prob = (
-                                       adj_matrix[i, n1] * adj_matrix[i, n2] * adj_matrix[n1, n2]
-                               ) ** (1 / 3)
+                            adj_matrix[i, n1] * adj_matrix[i, n2] * adj_matrix[n1, n2]
+                        ) ** (1 / 3)
                         triangle_probs.append(prob)
 
         if triangles:

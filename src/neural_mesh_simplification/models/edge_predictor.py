@@ -61,15 +61,25 @@ class EdgePredictor(nn.Module):
             ), torch.empty(0, device=edge_index.device)
 
         num_nodes = attention_scores.size(0)
-
         row, col = edge_index
+
+        # Ensure indices are within bounds
+        if row.numel() > 0:
+            assert torch.all(row < num_nodes) and torch.all(row >= 0), (
+                f"Row indices out of bounds: min={row.min()}, max={row.max()}, num_nodes={num_nodes}"
+            )
+        if col.numel() > 0:
+            assert torch.all(col < num_nodes) and torch.all(col >= 0), (
+                f"Column indices out of bounds: min={col.min()}, max={col.max()}, num_nodes={num_nodes}"
+            )
 
         # Create sparse attention matrix
         S = SparseTensor(
             row=row,
             col=col,
             value=attention_scores,
-            sparse_sizes=(num_nodes, num_nodes)
+            sparse_sizes=(num_nodes, num_nodes),
+            trust_data=True,  # Since we verified the indices above
         )
 
         # Create original adjacency matrix
@@ -77,7 +87,8 @@ class EdgePredictor(nn.Module):
             row=row,
             col=col,
             value=torch.ones(edge_index.size(1), device=edge_index.device),
-            sparse_sizes=(num_nodes, num_nodes)
+            sparse_sizes=(num_nodes, num_nodes),
+            trust_data=True,  # Since we verified the indices above
         )
 
         # Compute A_s = S * A * S^T
@@ -85,7 +96,6 @@ class EdgePredictor(nn.Module):
 
         # Convert to COO format
         row, col, value = A_s.coo()
-
         indices = torch.stack([row, col], dim=0)
 
         return indices, value
