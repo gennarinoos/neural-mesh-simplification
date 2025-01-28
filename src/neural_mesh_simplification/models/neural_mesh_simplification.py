@@ -90,9 +90,9 @@ class NeuralMeshSimplification(nn.Module):
             )
         else:
             threshold = torch.quantile(
-                triangle_probs, 1 - self.target_ratio
+                face_probs, 1 - self.target_ratio
             )  # Use a dynamic threshold
-            simplified_faces = candidate_triangles[triangle_probs > threshold]
+            simplified_faces = candidate_triangles[face_probs > threshold]
 
         return {
             "sampled_indices": sampled_indices,
