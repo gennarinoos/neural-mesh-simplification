@@ -36,6 +36,22 @@ The method consists of three main steps:
 conda create -n neural-mesh-simplification python=3.12
 conda activate neural-mesh-simplification
 conda install pip
+```
+
+Depending on whether you are using PyTorch on a CPU or a GPU,
+you'll have to use the correct binaries for PyTorch and the PyTorch Geometric libraries. You can install them via:
+
+```bash
+pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cpu
+pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.4.0+cpu.html
+```
+
+Replace “cpu” with “cu121” or the appropriate CUDA version for your system. If you don't know what is your cuda version,
+run `nvidia-smi`
+
+After that you can install the remaining requirements
+
+```bash
 pip install -r requirements.txt
 pip install -e .
 ```
