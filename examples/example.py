@@ -8,8 +8,7 @@ from neural_mesh_simplification.data.dataset import load_mesh
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 data_dir = os.path.join(script_dir, "data")
-script_dir = os.path.dirname(os.path.abspath(__file__))
-train_config = os.path.join(script_dir, "../configs/default.yaml")
+default_config_path = os.path.join(script_dir, "../configs/default.yaml")
 
 
 def load_config(config_path):
@@ -98,7 +97,7 @@ def mesh_dropbox_example(simplifier: NeuralMeshSimplifier):
 
 def main():
     # Initialize the simplifier
-    config = load_config(config_path=train_config)
+    config = load_config(config_path=default_config_path)
     simplifier = NeuralMeshSimplifier(
         input_dim=config["model"]["input_dim"],
         hidden_dim=config["model"]["hidden_dim"],

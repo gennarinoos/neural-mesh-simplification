@@ -18,7 +18,7 @@ class NeuralMeshSimplification(nn.Module):
         target_ratio=0.5,
     ):
         super(NeuralMeshSimplification, self).__init__()
-        self.point_sampler = PointSampler(input_dim, hidden_dim)
+        self.point_sampler = PointSampler(input_dim, hidden_dim, num_layers)
         self.edge_predictor = EdgePredictor(
             input_dim,
             hidden_channels=edge_hidden_dim,

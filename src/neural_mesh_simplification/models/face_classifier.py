@@ -5,7 +5,7 @@ from .layers import TriConv
 
 
 class FaceClassifier(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_layers=3, k=20):
+    def __init__(self, input_dim, hidden_dim, num_layers, k):
         super(FaceClassifier, self).__init__()
         self.k = k
         self.num_layers = num_layers

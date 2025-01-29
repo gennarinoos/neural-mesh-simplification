@@ -144,6 +144,9 @@ class Trainer:
 
     def _save_checkpoint(self, epoch: int, val_loss: float):
         checkpoint_path = os.path.join(self.checkpoint_dir, f"checkpoint_epoch_{epoch + 1}.pth")
+
+        logging.debug(f"Saving checkpoint to {checkpoint_path}")
+
         torch.save(
             {
                 "epoch": epoch + 1,

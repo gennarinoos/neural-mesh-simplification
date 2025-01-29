@@ -36,6 +36,22 @@ The method consists of three main steps:
 conda create -n neural-mesh-simplification python=3.12
 conda activate neural-mesh-simplification
 conda install pip
+```
+
+Depending on whether you are using PyTorch on a CPU or a GPU,
+you'll have to use the correct binaries for PyTorch and the PyTorch Geometric libraries. You can install them via:
+
+```bash
+pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cpu
+pip install torch_cluster==1.6.3 torch_geometric==2.5.3 torch_scatter==2.1.2 torch_sparse==0.6.18 -f https://data.pyg.org/whl/torch-2.4.0+cpu.html
+```
+
+Replace “cpu” with “cu121” or the appropriate CUDA version for your system. If you don't know what is your cuda version,
+run `nvidia-smi`
+
+After that you can install the remaining requirements
+
+```bash
 pip install -r requirements.txt
 pip install -e .
 ```
@@ -69,7 +85,7 @@ You can use `--target-folder` to specify a different folder.
 Once you have some data, you should preprocess it using the following script:
 
 ```bash
-python scripts/preprocess.py
+python scripts/preprocess_data.py
 ```
 
 You can use the `--data_path` argument to specify the path to the dataset. The script will create a `data/processed`
@@ -79,22 +95,31 @@ You can use the `--data_path` argument to specify the path to the dataset. The s
 To train the model on your own dataset with the prepared data:
 
 ```bash
-python ./scripts/train.py --data_path data/processed --config configs/default.yaml
+python ./scripts/train.py
 ```
 
-Specify a different `--data_path` if you have your data in a different location.\
-You can use the default training config at `scripts/train_config.yml` or specify a different one with `--config_path`.\
-You can also override the checkpoint directory specified in the config file (where the model will be saved) with
-`--checkpoint_dir`.\
-If the training was interrupted, you can resume it by specifying the path to the checkpoint with `--resume`.
+By default, the default training config at `config/default.yaml` will be used. You can override it with
+`--config /path/to/your/config.yaml`.\
+You can override the following config parameters:
+
+* the checkpoint directory specified in the config file (where the model will be saved) with
+  `--checkpoint-dir`.
+* the data path with `--data-path` if you have your data in a different location.
+
+If the training was interrupted, you can resume it by specifying the path to the previously created checkpoint directory
+with `--resume`.\
+Use `--debug` to see DEBUG logging.
 
 ### Evaluation
 
 To evaluate the model on a test set:
 
 ```bash
-python ./scripts/evaluate.py --config configs/default.yaml --eval_data_path /path/to/test/set --checkpoint /path/to/checkpoint.pth
+python ./scripts/evaluate.py --eval-data-path /path/to/test/set --checkpoint /path/to/checkpoint.pth
 ```
+
+By default, the default training config at `config/default.yaml` will be used. You can override it with
+`--config /path/to/your/config.yaml`.
 
 ### Inference
 
