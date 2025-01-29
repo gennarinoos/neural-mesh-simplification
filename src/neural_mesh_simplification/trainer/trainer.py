@@ -3,6 +3,7 @@ import os
 from typing import Dict, Any
 
 import torch
+from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import random_split
 from torch_geometric.loader import DataLoader
@@ -19,6 +20,10 @@ class Trainer:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         logger.info("Initializing trainer...")
+
+        # Enable CUDA optimization
+        torch.backends.cudnn.benchmark = True
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logger.info(f"Using device: {self.device}")
 
@@ -33,8 +38,8 @@ class Trainer:
             target_ratio=config["model"]["target_ratio"],
         ).to(self.device)
 
-        logger.info("Setting up optimizer and loss...")
-        self.optimizer = torch.optim.AdamW(
+        logger.debug("Setting up optimizer and loss...")
+        self.optimizer = Adam(
             self.model.parameters(), lr=config["training"]["learning_rate"]
         )
         self.scheduler = ReduceLROnPlateau(
@@ -51,14 +56,14 @@ class Trainer:
         self.checkpoint_dir = config["training"]["checkpoint_dir"]
         os.makedirs(self.checkpoint_dir, exist_ok=True)
 
-        logger.info("Preparing data loaders...")
+        logger.debug("Preparing data loaders...")
         self.train_loader, self.val_loader = self._prepare_data_loaders()
         logger.info("Trainer initialization complete.")
 
     def _prepare_data_loaders(self):
         logger.info(f"Loading dataset from {self.config['data']['data_dir']}")
         dataset = MeshSimplificationDataset(data_dir=self.config["data"]["data_dir"])
-        logger.info(f"Dataset size: {len(dataset)}")
+        logger.debug(f"Dataset size: {len(dataset)}")
 
         val_size = int(len(dataset) * self.config["data"]["val_split"])
         train_size = len(dataset) - val_size
@@ -67,21 +72,27 @@ class Trainer:
         train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
         assert len(val_dataset) > 0, \
             f"There is not enough data to define an evaluation set. len(dataset)={len(dataset)}, train_size={train_size}, val_size={val_size}"
+
         train_loader = DataLoader(
             train_dataset,
             batch_size=self.config["training"]["batch_size"],
             shuffle=True,
-            pin_memory=True,
+            pin_memory=True if torch.cuda.is_available() else False,
             num_workers=self.config["data"]["num_workers"],
-            follow_batch=["x", "pos"],
+            persistent_workers=True,
+            prefetch_factor=2,  # Prefetch next batch
+            follow_batch=["x", "pos"]
         )
+
         val_loader = DataLoader(
             val_dataset,
-            batch_size=self.config["training"]["batch_size"],
+            batch_size=self.config["training"]["batch_size"] * 2,  # Larger batch size for validation
             shuffle=False,
-            pin_memory=True,
+            pin_memory=True if torch.cuda.is_available() else False,
             num_workers=self.config["data"]["num_workers"],
-            follow_batch=["x", "pos"],
+            persistent_workers=True,
+            prefetch_factor=2,
+            follow_batch=["x", "pos"]
         )
         logger.info("Data loaders prepared successfully")
 
@@ -89,7 +100,15 @@ class Trainer:
 
     def train(self):
         for epoch in range(self.config["training"]["num_epochs"]):
-            self._train_one_epoch(epoch)
+            if torch.cuda.is_available():
+                loss = self._train_one_epoch_on_gpu(epoch)
+            else:
+                loss = self._train_one_epoch(epoch)
+
+            logging.info(
+                f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Loss: {loss / len(self.train_loader)}"
+            )
+
             val_loss = self._validate(epoch)
             self.scheduler.step(val_loss)
 
@@ -104,49 +123,79 @@ class Trainer:
                 logging.info("Early stopping triggered.")
                 break
 
-    def _train_one_epoch(self, epoch: int):
+    def _train_one_epoch(self, epoch: int) -> float:
         self.model.train()
         running_loss = 0.0
         logger.debug(f"Starting epoch {epoch + 1}")
-        accumulation_steps = 4  # Adjust as needed
-        self.optimizer.zero_grad()
+
         for batch_idx, batch in enumerate(self.train_loader):
+            logger.debug(f"Processing batch {batch_idx + 1}")
             try:
+                self.optimizer.zero_grad()
                 batch = batch.to(self.device)
                 output = self.model(batch)
                 loss = self.criterion(batch, output)
-                loss = loss / accumulation_steps
                 loss.backward()
-                running_loss += loss.item() * accumulation_steps
-
-                if (batch_idx + 1) % accumulation_steps == 0:
-                    self.optimizer.step()
-                    self.optimizer.zero_grad()
+                self.optimizer.step()
+                running_loss += loss.item()
 
                 if (batch_idx + 1) % 10 == 0:
-                    logger.info(f"Batch {batch_idx + 1} - Loss: {loss.item() * accumulation_steps:.4f}")
+                    logger.info(f"Batch {batch_idx + 1} - Loss: {loss.item():.4f}")
 
             except Exception as e:
                 logger.error(f"Error in batch {batch_idx + 1}: {str(e)}")
                 raise e
 
-            if (batch_idx + 1) % accumulation_steps != 0:
-                self.optimizer.step()
-                self.optimizer.zero_grad()
+        return running_loss
 
-        logging.info(
-            f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Loss: {running_loss / len(self.train_loader)}"
-        )
+    def _train_one_epoch_on_gpu(self, epoch: int) -> float:
+        self.model.train()
+        running_loss = 0.0
+        logger.debug(f"Starting epoch {epoch + 1}")
+
+        # Enable automatic mixed precision training
+        scaler = torch.cuda.amp.GradScaler()
+
+        for batch_idx, batch in enumerate(self.train_loader):
+            logger.debug(f"Processing batch {batch_idx + 1}")
+            try:
+                # Move batch to GPU immediately
+                batch = batch.to(self.device, non_blocking=True)
+
+                # Use automatic mixed precision
+                with torch.cuda.amp.autocast():
+                    output = self.model(batch)
+                    loss = self.criterion(batch, output)
+
+                scaler.scale(loss).backward()
+                scaler.step(self.optimizer)
+                scaler.update()
+                self.optimizer.zero_grad(set_to_none=True)  # More efficient than zero_grad()
+
+                running_loss += loss.item()
+
+                if (batch_idx + 1) % 10 == 0:
+                    # Synchronize CUDA for accurate timing
+                    torch.cuda.synchronize()
+                    logger.info(f"Batch {batch_idx + 1} - Loss: {loss.item():.4f}")
+
+            except Exception as e:
+                logger.error(f"Error in batch {batch_idx + 1}: {str(e)}")
+                raise e
+
+        epoch_loss = running_loss / len(self.train_loader)
+        return epoch_loss
 
     def _validate(self, epoch: int) -> float:
         self.model.eval()
         val_loss = 0.0
         with torch.no_grad():
             for batch in self.val_loader:
-                batch = batch.to(self.device)
+                batch = batch.to(self.device, non_blocking=True)
                 output = self.model(batch)
                 loss = self.criterion(batch, output)
                 val_loss += loss.item()
+
         val_loss /= len(self.val_loader)
         logging.info(f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Validation Loss: {val_loss}")
         return val_loss
