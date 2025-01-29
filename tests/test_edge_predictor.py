@@ -38,7 +38,7 @@ def test_edge_predictor_forward(sample_mesh_data):
     assert isinstance(simplified_adj_values, torch.Tensor)
     assert simplified_adj_indices.shape[0] == 2  # 2 rows for source and target indices
     assert (
-            simplified_adj_values.shape[0] == simplified_adj_indices.shape[1]
+        simplified_adj_values.shape[0] == simplified_adj_indices.shape[1]
     )  # Same number of values as edges
 
 
@@ -135,17 +135,15 @@ def test_empty_input_handling():
     empty_edge_index = torch.empty((2, 0), dtype=torch.long)
 
     # Test forward pass with empty edge_index
-    indices, values = edge_predictor(x, empty_edge_index)
-    assert indices.shape == (2, 0)
-    assert values.shape == (0,)
+    with pytest.raises(ValueError, match="Edge index is empty"):
+        indices, values = edge_predictor(x, empty_edge_index)
 
     # Test compute_simplified_adjacency with empty edge_index
     empty_attention_scores = torch.empty(0)
-    indices, values = edge_predictor.compute_simplified_adjacency(
-        empty_attention_scores, empty_edge_index
-    )
-    assert indices.shape == (2, 0)
-    assert values.shape == (0,)
+    with pytest.raises(ValueError, match="Edge index is empty"):
+        indices, values = edge_predictor.compute_simplified_adjacency(
+            empty_attention_scores, empty_edge_index
+        )
 
 
 def test_feature_transformation():
