@@ -104,11 +104,6 @@ class Trainer:
                 logging.info("Early stopping triggered.")
                 break
 
-            del val_loss
-
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
     def _train_one_epoch(self, epoch: int):
         self.model.train()
         running_loss = 0.0
