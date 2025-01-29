@@ -21,8 +21,9 @@ class Trainer:
         self.config = config
         logger.info("Initializing trainer...")
 
-        # Enable CUDA optimization
+        # Enable memory efficient options
         torch.backends.cudnn.benchmark = True
+        os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logger.info(f"Using device: {self.device}")
@@ -110,6 +111,8 @@ class Trainer:
             )
 
             val_loss = self._validate(epoch)
+            logging.info(f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Validation Loss: {val_loss}")
+
             self.scheduler.step(val_loss)
 
             # Apply weight decay after each epoch (as per paper)
@@ -154,20 +157,30 @@ class Trainer:
         logger.debug(f"Starting epoch {epoch + 1}")
 
         # Enable automatic mixed precision training
-        scaler = torch.cuda.amp.GradScaler()
+        scaler = torch.amp.GradScaler('cuda')
 
         for batch_idx, batch in enumerate(self.train_loader):
             logger.debug(f"Processing batch {batch_idx + 1}")
             try:
-                # Move batch to GPU immediately
-                batch = batch.to(self.device, non_blocking=True)
+                # Clear cache before processing batch
+                torch.cuda.empty_cache()
+
+                # Move batch to GPU gradually if needed
+                if hasattr(batch, 'x'):
+                    batch.x = batch.x.to(self.device, non_blocking=True)
+                if hasattr(batch, 'edge_index'):
+                    batch.edge_index = batch.edge_index.to(self.device, non_blocking=True)
+                if hasattr(batch, 'pos'):
+                    batch.pos = batch.pos.to(self.device, non_blocking=True)
 
                 # Use automatic mixed precision
-                with torch.cuda.amp.autocast():
+                with torch.amp.autocast('cuda'):
                     output = self.model(batch)
                     loss = self.criterion(batch, output)
 
                 scaler.scale(loss).backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+
                 scaler.step(self.optimizer)
                 scaler.update()
                 self.optimizer.zero_grad(set_to_none=True)  # More efficient than zero_grad()
@@ -175,9 +188,33 @@ class Trainer:
                 running_loss += loss.item()
 
                 if (batch_idx + 1) % 10 == 0:
+                    # Log memory usage
+                    allocated = torch.cuda.memory_allocated() / 1024 ** 3
+                    reserved = torch.cuda.memory_reserved() / 1024 ** 3
+                    logger.debug(f"Batch {batch_idx + 1} - Loss: {loss.item():.4f}, "
+                                 f"GPU Memory: Allocated={allocated:.2f}GB, Reserved={reserved:.2f}GB")
+
                     # Synchronize CUDA for accurate timing
                     torch.cuda.synchronize()
                     logger.info(f"Batch {batch_idx + 1} - Loss: {loss.item():.4f}")
+
+            except RuntimeError as e:
+                if "out of memory" in str(e):
+                    # Clear cache and try to recover
+                    torch.cuda.empty_cache()
+                    logger.error(
+                        f"OOM in batch {batch_idx + 1}. Current batch size: {self.config['training']['batch_size']}")
+
+                    # Reduce batch size
+                    self.config['training']['batch_size'] = max(1, self.config['training']['batch_size'] // 2)
+                    logger.info(f"Reducing batch size to {self.config['training']['batch_size']}")
+
+                    # Recreate data loaders with new batch size
+                    self.train_loader, self.val_loader = self._prepare_data_loaders()
+
+                    # Skip this batch
+                    continue
+                raise e
 
             except Exception as e:
                 logger.error(f"Error in batch {batch_idx + 1}: {str(e)}")
@@ -191,13 +228,22 @@ class Trainer:
         val_loss = 0.0
         with torch.no_grad():
             for batch in self.val_loader:
-                batch = batch.to(self.device, non_blocking=True)
+                # Clear cache before processing batch
+                torch.cuda.empty_cache()
+
+                # Move batch to GPU gradually
+                if hasattr(batch, 'x'):
+                    batch.x = batch.x.to(self.device, non_blocking=True)
+                if hasattr(batch, 'edge_index'):
+                    batch.edge_index = batch.edge_index.to(self.device, non_blocking=True)
+                if hasattr(batch, 'pos'):
+                    batch.pos = batch.pos.to(self.device, non_blocking=True)
+
                 output = self.model(batch)
                 loss = self.criterion(batch, output)
                 val_loss += loss.item()
 
         val_loss /= len(self.val_loader)
-        logging.info(f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Validation Loss: {val_loss}")
         return val_loss
 
     def _save_checkpoint(self, epoch: int, val_loss: float):

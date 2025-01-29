@@ -1,7 +1,7 @@
 # Model parameters
 model:
   input_dim: 3
-  hidden_dim: 128 # feature dimension for point sampler and face classifier (as per paper)
+  hidden_dim: 64 # feature dimension for point sampler and face classifier (as per paper)
   edge_hidden_dim: 64 # feature dimension for edge predictor (as per paper)
   num_layers: 3 # number of convolutional layers (as per paper)
   k: 15 # number of neighbors for graph construction (as per paper)
@@ -12,16 +12,16 @@ model:
 training:
   learning_rate: 1.0e-5
   weight_decay: 0.99 # weight decay per epoch (as per paper)
-  batch_size: 4
-  num_epochs: 150 # total training epochs
-  early_stopping_patience: 15 # epochs before early stopping
+  batch_size: 1
+  num_epochs: 2 # total training epochs
+  early_stopping_patience: 2 # epochs before early stopping
   checkpoint_dir: data/checkpoints # model save directory
 
 # Data parameters
 data:
   data_dir: data/processed
-  val_split: 0.2
-  num_workers: 4 # dataloader workers
+  val_split: 0.4
+  num_workers: 8 # dataloader workers
 
 # Loss weights
 loss:
