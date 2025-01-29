@@ -18,12 +18,6 @@ class EdgePredictor(nn.Module):
         self.W_k = nn.Linear(hidden_channels, hidden_channels, bias=False)
 
     def forward(self, x, edge_index):
-        # Handle the case when edge_index is empty
-        if edge_index.numel() == 0:
-            return torch.empty((2, 0), dtype=torch.long, device=x.device), torch.empty(
-                0, device=x.device
-            )
-
         # Step 1: Extend original mesh connectivity with k-nearest neighbors
         knn_edges = knn_graph(x, k=self.k, flow="target_to_source")
 
@@ -54,9 +48,6 @@ class EdgePredictor(nn.Module):
         return simplified_adj_indices, simplified_adj_values
 
     def compute_attention_scores(self, features, edges):
-        if edges.numel() == 0:
-            return torch.empty(0, device=features.device)
-
         row, col = edges
         q = self.W_q(features)
         k = self.W_k(features)
@@ -70,11 +61,6 @@ class EdgePredictor(nn.Module):
         return attention_scores
 
     def compute_simplified_adjacency(self, attention_scores, edge_index):
-        if edge_index.numel() == 0:
-            return torch.empty(
-                (2, 0), dtype=torch.long, device=edge_index.device
-            ), torch.empty(0, device=edge_index.device)
-
         num_nodes = edge_index.max().item() + 1
         row, col = edge_index
 
