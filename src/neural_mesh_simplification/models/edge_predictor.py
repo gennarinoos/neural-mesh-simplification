@@ -18,6 +18,9 @@ class EdgePredictor(nn.Module):
         self.W_k = nn.Linear(hidden_channels, hidden_channels, bias=False)
 
     def forward(self, x, edge_index):
+        if edge_index.numel() == 0:
+            raise ValueError("Edge index is empty")
+
         # Step 1: Extend original mesh connectivity with k-nearest neighbors
         knn_edges = knn_graph(x, k=self.k, flow="target_to_source")
 
@@ -48,6 +51,9 @@ class EdgePredictor(nn.Module):
         return simplified_adj_indices, simplified_adj_values
 
     def compute_attention_scores(self, features, edges):
+        if edges.numel() == 0:
+            raise ValueError("Edge index is empty")
+
         row, col = edges
         q = self.W_q(features)
         k = self.W_k(features)
@@ -61,6 +67,9 @@ class EdgePredictor(nn.Module):
         return attention_scores
 
     def compute_simplified_adjacency(self, attention_scores, edge_index):
+        if edge_index.numel() == 0:
+            raise ValueError("Edge index is empty")
+
         num_nodes = edge_index.max().item() + 1
         row, col = edge_index
 
