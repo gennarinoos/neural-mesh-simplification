@@ -24,9 +24,21 @@ class EdgePredictor(nn.Module):
                 0, device=x.device
             )
 
-        # Step 1: Extend original mesh connectivity
+        # Step 1: Extend original mesh connectivity with k-nearest neighbors
         knn_edges = knn_graph(x, k=self.k, flow="target_to_source")
-        extended_edges = torch.cat([edge_index, knn_edges], dim=1)
+
+        # Ensure knn_edges indices are within bounds
+        max_idx = x.size(0) - 1
+        valid_edges = (knn_edges[0] <= max_idx) & (knn_edges[1] <= max_idx)
+        knn_edges = knn_edges[:, valid_edges]
+
+        # Combine original edges with knn edges
+        if edge_index.numel() > 0:
+            extended_edges = torch.cat([edge_index, knn_edges], dim=1)
+            # Remove duplicate edges
+            extended_edges = torch.unique(extended_edges, dim=1)
+        else:
+            extended_edges = knn_edges
 
         # Step 2: Apply DevConv
         features = self.devconv(x, extended_edges)
@@ -42,6 +54,9 @@ class EdgePredictor(nn.Module):
         return simplified_adj_indices, simplified_adj_values
 
     def compute_attention_scores(self, features, edges):
+        if edges.numel() == 0:
+            return torch.empty(0, device=features.device)
+
         row, col = edges
         q = self.W_q(features)
         k = self.W_k(features)
@@ -60,7 +75,7 @@ class EdgePredictor(nn.Module):
                 (2, 0), dtype=torch.long, device=edge_index.device
             ), torch.empty(0, device=edge_index.device)
 
-        num_nodes = attention_scores.size(0)
+        num_nodes = edge_index.max().item() + 1
         row, col = edge_index
 
         # Ensure indices are within bounds
