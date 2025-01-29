@@ -3,7 +3,6 @@ import os
 from typing import Dict, Any
 
 import torch
-from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import random_split
 from torch_geometric.loader import DataLoader
@@ -35,7 +34,7 @@ class Trainer:
         ).to(self.device)
 
         logger.info("Setting up optimizer and loss...")
-        self.optimizer = Adam(
+        self.optimizer = torch.optim.AdamW(
             self.model.parameters(), lr=config["training"]["learning_rate"]
         )
         self.scheduler = ReduceLROnPlateau(
@@ -72,6 +71,7 @@ class Trainer:
             train_dataset,
             batch_size=self.config["training"]["batch_size"],
             shuffle=True,
+            pin_memory=True,
             num_workers=self.config["data"]["num_workers"],
             follow_batch=["x", "pos"],
         )
@@ -79,6 +79,7 @@ class Trainer:
             val_dataset,
             batch_size=self.config["training"]["batch_size"],
             shuffle=False,
+            pin_memory=True,
             num_workers=self.config["data"]["num_workers"],
             follow_batch=["x", "pos"],
         )
@@ -103,28 +104,41 @@ class Trainer:
                 logging.info("Early stopping triggered.")
                 break
 
+            del val_loss
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
     def _train_one_epoch(self, epoch: int):
         self.model.train()
         running_loss = 0.0
         logger.debug(f"Starting epoch {epoch + 1}")
+        accumulation_steps = 4  # Adjust as needed
+        self.optimizer.zero_grad()
         for batch_idx, batch in enumerate(self.train_loader):
-            logger.debug(f"Processing batch {batch_idx + 1}")
             try:
-                self.optimizer.zero_grad()
                 batch = batch.to(self.device)
-
                 output = self.model(batch)
                 loss = self.criterion(batch, output)
+                loss = loss / accumulation_steps
                 loss.backward()
-                self.optimizer.step()
-                running_loss += loss.item()
+                running_loss += loss.item() * accumulation_steps
+
+                if (batch_idx + 1) % accumulation_steps == 0:
+                    self.optimizer.step()
+                    self.optimizer.zero_grad()
 
                 if (batch_idx + 1) % 10 == 0:
-                    logger.info(f"Batch {batch_idx + 1} - Loss: {loss.item():.4f}")
+                    logger.info(f"Batch {batch_idx + 1} - Loss: {loss.item() * accumulation_steps:.4f}")
 
             except Exception as e:
                 logger.error(f"Error in batch {batch_idx + 1}: {str(e)}")
                 raise e
+
+            if (batch_idx + 1) % accumulation_steps != 0:
+                self.optimizer.step()
+                self.optimizer.zero_grad()
+
         logging.info(
             f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Loss: {running_loss / len(self.train_loader)}"
         )
@@ -160,6 +174,11 @@ class Trainer:
             self.best_val_loss = val_loss
             best_model_path = os.path.join(self.checkpoint_dir, "best_model.pth")
             torch.save(self.model.state_dict(), best_model_path)
+
+            # Remove old checkpoints to save space
+            for old_checkpoint in os.listdir(self.checkpoint_dir):
+                if old_checkpoint.startswith("checkpoint_") and old_checkpoint != f"checkpoint_epoch_{epoch + 1}.pth":
+                    os.remove(os.path.join(self.checkpoint_dir, old_checkpoint))
 
     def _early_stopping(self, val_loss: float) -> bool:
         if val_loss < self.best_val_loss:
