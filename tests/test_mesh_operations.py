@@ -1,6 +1,7 @@
-import numpy as np
 import networkx as nx
-from neural_mesh_simplification.utils.mesh_operations import build_graph_from_mesh
+import numpy as np
+
+from neural_mesh_simplification.utils import build_graph_from_mesh
 
 
 def test_build_graph_from_mesh(sample_mesh):

@@ -1,6 +1,6 @@
 import argparse
 
-from neural_mesh_simplification.trainer.trainer import Trainer
+from neural_mesh_simplification.trainer import Trainer
 
 
 def parse_args():

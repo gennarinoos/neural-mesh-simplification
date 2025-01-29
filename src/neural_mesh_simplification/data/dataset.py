@@ -8,7 +8,7 @@ from torch.utils.data import Dataset
 from torch_geometric.data import Data
 from trimesh import Geometry, Trimesh
 
-from ..utils.mesh_operations import build_graph_from_mesh
+from ..utils import build_graph_from_mesh
 
 
 class MeshSimplificationDataset(Dataset):
