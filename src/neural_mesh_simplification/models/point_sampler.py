@@ -1,10 +1,11 @@
 import torch
 import torch.nn as nn
+
 from .layers.devconv import DevConv
 
 
 class PointSampler(nn.Module):
-    def __init__(self, in_channels=3, out_channels=64, num_layers=3):
+    def __init__(self, in_channels, out_channels, num_layers):
         super(PointSampler, self).__init__()
         self.num_layers = num_layers
 
@@ -39,10 +40,17 @@ class PointSampler(nn.Module):
         return probabilities
 
     def sample(self, probabilities, num_samples):
+        max_samples = probabilities.shape[0]
+        if num_samples > max_samples:
+            raise ValueError(
+                f"num_samples ({num_samples}) cannot be larger than number of vertices ({max_samples})"
+            )
+
         # Multinomial sampling based on probabilities
         sampled_indices = torch.multinomial(
             probabilities, num_samples, replacement=False
         )
+
         return sampled_indices
 
     def forward_and_sample(self, x, edge_index, num_samples):

@@ -1,6 +1,6 @@
 import torch
 import pytest
-from losses import EdgeCrossingLoss
+from neural_mesh_simplification.losses import EdgeCrossingLoss
 
 
 @pytest.fixture

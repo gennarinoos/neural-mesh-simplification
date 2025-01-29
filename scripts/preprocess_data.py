@@ -1,24 +1,20 @@
 import os
-import sys
 
-# Add the root directory of your project to the Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from data.dataset import MeshSimplificationDataset, load_mesh, preprocess_mesh
-import trimesh
 import networkx as nx
+import trimesh
 from tqdm import tqdm
+
+from neural_mesh_simplification.data import MeshSimplificationDataset
+from neural_mesh_simplification.data.dataset import load_mesh, preprocess_mesh
 
 
 def preprocess_dataset(
-    input_dir,
-    output_dir,
-    pre_process=True,
-    min_faces=1000,
-    max_faces=50000,
-    min_components=1,
-    max_components=1,
-    print_stats=False,
+        input_dir,
+        output_dir,
+        pre_process=True,
+        min_components=1,
+        max_components=1,
+        print_stats=False,
 ):
     dataset = MeshSimplificationDataset(data_dir=input_dir)
 
@@ -71,4 +67,8 @@ def preprocess_dataset(
 
 
 if __name__ == "__main__":
+    if not os.path.exists("data/raw"):
+        raise FileNotFoundError("The 'data/raw' directory does not exist. Please download the dataset first.")
+
+    os.makedirs("data/processed", exist_ok=True)
     preprocess_dataset("data/raw", "data/processed")

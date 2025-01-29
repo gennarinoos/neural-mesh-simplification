@@ -2,7 +2,7 @@ import sys
 import pytest
 import torch
 from torch import nn
-from models.layers import DevConv, TriConv
+from neural_mesh_simplification.models.layers import DevConv, TriConv
 
 
 def create_graph_data():

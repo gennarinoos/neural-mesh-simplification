@@ -1,27 +1,24 @@
-import torch
 import pytest
+import torch
 from torch_geometric.data import Data
-from models import NeuralMeshSimplification
+
+from neural_mesh_simplification.models import NeuralMeshSimplification
 
 
 @pytest.fixture
-def sample_data():
-    x = torch.randn(10, 3)
+def sample_data() -> Data:
+    num_nodes = 10
+    x = torch.randn(num_nodes, 3)
+    # Create a valid edge index where all indices are within bounds
     edge_index = torch.tensor(
-        [[0, 1, 1, 2, 3, 4], [1, 0, 2, 1, 4, 3]], dtype=torch.long
+        [[0, 1, 1, 2, 2, 3], [1, 0, 2, 1, 3, 2]], dtype=torch.long
     )
-    pos = torch.randn(10, 3)
+    pos = torch.randn(num_nodes, 3)
     return Data(x=x, edge_index=edge_index, pos=pos)
 
 
-def test_neural_mesh_simplification_forward(sample_data):
-    model = NeuralMeshSimplification(
-        input_dim=3,
-        hidden_dim=64,
-        edge_hidden_dim=64,  # Add edge-specific hidden dimension
-        num_layers=3,
-        k=5,
-    )
+def test_neural_mesh_simplification_forward(sample_data: Data):
+    model = NeuralMeshSimplification(input_dim=3, hidden_dim=64, edge_hidden_dim=64)
     output = model(sample_data)
 
     # Add assertions to check the output structure and shapes
@@ -95,13 +92,7 @@ def test_neural_mesh_simplification_forward(sample_data):
 
 
 def test_generate_candidate_triangles():
-    model = NeuralMeshSimplification(
-        input_dim=3,
-        hidden_dim=64,
-        edge_hidden_dim=64,  # Add edge-specific hidden dimension
-        num_layers=3,
-        k=5,
-    )
+    model = NeuralMeshSimplification(input_dim=3, hidden_dim=64, edge_hidden_dim=64)
     edge_index = torch.tensor(
         [[0, 1, 1, 2, 3, 4], [1, 0, 2, 1, 4, 3]], dtype=torch.long
     )

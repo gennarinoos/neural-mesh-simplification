@@ -1,23 +1,18 @@
-import os
-import torch
 import logging
-from torch.utils.data import random_split
-from torch_geometric.loader import DataLoader
+import os
+from typing import Dict, Any
+
+import torch
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from typing import Dict, Any
-from models import NeuralMeshSimplification
-from losses import CombinedMeshSimplificationLoss
-from data import MeshSimplificationDataset
-from metrics import (
-    chamfer_distance,
-    normal_consistency,
-    edge_preservation,
-    hausdorff_distance,
-)
+from torch.utils.data import random_split
+from torch_geometric.loader import DataLoader
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+from ..data import MeshSimplificationDataset
+from ..losses import CombinedMeshSimplificationLoss
+from ..metrics import chamfer_distance, normal_consistency, edge_preservation, hausdorff_distance
+from ..models import NeuralMeshSimplification
+
 logger = logging.getLogger(__name__)
 
 
@@ -71,7 +66,8 @@ class Trainer:
         logger.info(f"Splitting dataset: {train_size} train, {val_size} validation")
 
         train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
-
+        assert len(val_dataset) > 0, \
+            f"There is not enough data to define an evaluation set. len(dataset)={len(dataset)}, train_size={train_size}, val_size={val_size}"
         train_loader = DataLoader(
             train_dataset,
             batch_size=self.config["training"]["batch_size"],
@@ -87,6 +83,7 @@ class Trainer:
             follow_batch=["x", "pos"],
         )
         logger.info("Data loaders prepared successfully")
+
         return train_loader, val_loader
 
     def train(self):
@@ -109,14 +106,12 @@ class Trainer:
     def _train_one_epoch(self, epoch: int):
         self.model.train()
         running_loss = 0.0
-        logger.info(f"Starting epoch {epoch + 1}")
-
+        logger.debug(f"Starting epoch {epoch + 1}")
         for batch_idx, batch in enumerate(self.train_loader):
-            logger.info(f"Processing batch {batch_idx + 1}")
+            logger.debug(f"Processing batch {batch_idx + 1}")
             try:
                 self.optimizer.zero_grad()
                 batch = batch.to(self.device)
-                logger.debug(f"Batch data keys: {batch.keys()}")
 
                 output = self.model(batch)
                 loss = self.criterion(batch, output)
@@ -144,15 +139,14 @@ class Trainer:
                 loss = self.criterion(batch, output)
                 val_loss += loss.item()
         val_loss /= len(self.val_loader)
-        logging.info(
-            f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Validation Loss: {val_loss}"
-        )
+        logging.info(f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Validation Loss: {val_loss}")
         return val_loss
 
     def _save_checkpoint(self, epoch: int, val_loss: float):
-        checkpoint_path = os.path.join(
-            self.checkpoint_dir, f"checkpoint_epoch_{epoch + 1}.pth"
-        )
+        checkpoint_path = os.path.join(self.checkpoint_dir, f"checkpoint_epoch_{epoch + 1}.pth")
+
+        logging.debug(f"Saving checkpoint to {checkpoint_path}")
+
         torch.save(
             {
                 "epoch": epoch + 1,
@@ -179,15 +173,11 @@ class Trainer:
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self.best_val_loss = checkpoint["val_loss"]
-        logging.info(
-            f"Loaded checkpoint from {checkpoint_path} (epoch {checkpoint['epoch']})"
-        )
+        logging.info(f"Loaded checkpoint from {checkpoint_path} (epoch {checkpoint['epoch']})")
 
     def log_metrics(self, metrics: Dict[str, float], epoch: int):
         log_message = f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], "
-        log_message += ", ".join(
-            [f"{key}: {value:.4f}" for key, value in metrics.items()]
-        )
+        log_message += ", ".join([f"{key}: {value:.4f}" for key, value in metrics.items()])
         logging.info(log_message)
 
     def evaluate(self, data_loader: DataLoader) -> Dict[str, float]:
@@ -196,12 +186,15 @@ class Trainer:
             "chamfer_distance": 0.0,
             "normal_consistency": 0.0,
             "edge_preservation": 0.0,
-            "hausdorff_distance": 0.0,
+            "hausdorff_distance": 0.0
         }
         with torch.no_grad():
             for batch in data_loader:
                 batch = batch.to(self.device)
                 output = self.model(batch)
+
+                # TODO: Define methods that can operate on a batch instead of a trimesh object
+
                 metrics["chamfer_distance"] += chamfer_distance(batch, output)
                 metrics["normal_consistency"] += normal_consistency(batch, output)
                 metrics["edge_preservation"] += edge_preservation(batch, output)

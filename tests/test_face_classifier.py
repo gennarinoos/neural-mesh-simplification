@@ -1,11 +1,12 @@
-import torch
 import pytest
-from models.face_classifier import FaceClassifier
+import torch
+
+from neural_mesh_simplification.models.face_classifier import FaceClassifier
 
 
 @pytest.fixture
 def face_classifier():
-    return FaceClassifier(input_dim=16, hidden_dim=32)
+    return FaceClassifier(input_dim=16, hidden_dim=32, num_layers=3, k=20)
 
 
 def test_face_classifier_initialization(face_classifier):
@@ -72,7 +73,7 @@ def test_face_classifier_knn_graph(face_classifier):
     for i in range(num_faces):
         actual_neighbors = edge_index[1][edge_index[0] == i]
         assert (
-            len(actual_neighbors) >= face_classifier.k
+                len(actual_neighbors) >= face_classifier.k
         ), f"Face {i} has {len(actual_neighbors)} neighbors, which is less than {face_classifier.k}"
 
     # Verify that the graph is symmetric

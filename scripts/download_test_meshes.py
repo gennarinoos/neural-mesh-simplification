@@ -1,6 +1,7 @@
 import argparse
 import os
 import shutil
+
 from huggingface_hub import snapshot_download
 
 # abc_train is really large (+5k meshes)
@@ -39,7 +40,7 @@ def main():
     parser.add_argument(
         "--target-folder",
         type=str,
-        required=True,
+        required=False,
         help="The target folder path where the meshes will be downloaded.",
     )
     parser.add_argument(
@@ -52,9 +53,13 @@ def main():
     )
 
     args = parser.parse_args()
+    
+    target_folder = args.target_folder if args.target_folder else "data/raw"
+    if not os.path.exists(target_folder):
+        os.makedirs(target_folder)
 
     download_meshes(
-        args.target_folder,
+        target_folder,
         folder_patterns[0] if args.dataset_size == "small" else folder_patterns[1],
     )
 

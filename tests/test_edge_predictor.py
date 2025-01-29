@@ -1,10 +1,11 @@
-import torch
 import pytest
+import torch
 import torch.nn as nn
 from torch_geometric.data import Data
 from torch_geometric.nn import knn_graph
-from models.edge_predictor import EdgePredictor
-from models.layers.devconv import DevConv
+
+from neural_mesh_simplification.models.edge_predictor import EdgePredictor
+from neural_mesh_simplification.models.layers.devconv import DevConv
 
 
 @pytest.fixture
@@ -37,7 +38,7 @@ def test_edge_predictor_forward(sample_mesh_data):
     assert isinstance(simplified_adj_values, torch.Tensor)
     assert simplified_adj_indices.shape[0] == 2  # 2 rows for source and target indices
     assert (
-        simplified_adj_values.shape[0] == simplified_adj_indices.shape[1]
+            simplified_adj_values.shape[0] == simplified_adj_indices.shape[1]
     )  # Same number of values as edges
 
 
@@ -118,7 +119,7 @@ def test_simplified_adjacency_shapes():
     edge_index = torch.tensor([[0, 1, 1, 2], [1, 0, 2, 1]], dtype=torch.long)
     attention_scores = torch.rand(edge_index.shape[1])
 
-    edge_predictor = EdgePredictor(in_channels=3, hidden_channels=64)
+    edge_predictor = EdgePredictor(in_channels=3, hidden_channels=64, k=15)
     indices, values = edge_predictor.compute_simplified_adjacency(
         attention_scores, edge_index
     )
@@ -129,7 +130,7 @@ def test_simplified_adjacency_shapes():
 
 
 def test_empty_input_handling():
-    edge_predictor = EdgePredictor(in_channels=3, hidden_channels=64)
+    edge_predictor = EdgePredictor(in_channels=3, hidden_channels=64, k=15)
     x = torch.rand(5, 3)
     empty_edge_index = torch.empty((2, 0), dtype=torch.long)
 
