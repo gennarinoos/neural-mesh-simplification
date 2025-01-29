@@ -1,6 +1,7 @@
 import pytest
 import torch
 from torch_geometric.data import Data
+import torch_geometric.utils
 
 from neural_mesh_simplification.models import NeuralMeshSimplification
 
@@ -9,9 +10,13 @@ from neural_mesh_simplification.models import NeuralMeshSimplification
 def sample_data() -> Data:
     num_nodes = 10
     x = torch.randn(num_nodes, 3)
-    # Create a valid edge index where all indices are within bounds
+    # Create a more densely connected edge index
     edge_index = torch.tensor(
-        [[0, 1, 1, 2, 2, 3], [1, 0, 2, 1, 3, 2]], dtype=torch.long
+        [
+            [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4],
+            [1, 2, 3, 0, 2, 3, 0, 1, 3, 0, 1, 2, 5, 6, 7],
+        ],
+        dtype=torch.long,
     )
     pos = torch.randn(num_nodes, 3)
     return Data(x=x, edge_index=edge_index, pos=pos)
@@ -29,6 +34,21 @@ def test_neural_mesh_simplification_forward(sample_data: Data):
         k=3,  # Reduce k to avoid too many edges in the test
     )
 
+    # First test point sampling
+    sampled_indices, sampled_probs = model.sample_points(sample_data)
+    assert sampled_indices.numel() > 0, "No points were sampled"
+    assert sampled_indices.numel() <= sample_data.num_nodes, "Too many points sampled"
+
+    # Get the subgraph for sampled points
+    sampled_edge_index, _ = torch_geometric.utils.subgraph(
+        sampled_indices,
+        sample_data.edge_index,
+        relabel_nodes=True,
+        num_nodes=sample_data.num_nodes,
+    )
+    assert sampled_edge_index.numel() > 0, "No edges in sampled subgraph"
+
+    # Now test the full forward pass
     output = model(sample_data)
 
     # Add assertions to check the output structure and shapes
