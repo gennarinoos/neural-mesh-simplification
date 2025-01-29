@@ -12,7 +12,7 @@ model:
 training:
   learning_rate: 1.0e-5
   weight_decay: 0.99 # weight decay per epoch (as per paper)
-  batch_size: 1 # process full meshes
+  batch_size: 32
   num_epochs: 150 # total training epochs
   early_stopping_patience: 15 # epochs before early stopping
   checkpoint_dir: data/checkpoints # model save directory
