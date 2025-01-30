@@ -29,6 +29,7 @@ class Trainer:
 
         logger.info("Initializing model...")
         self.model = NeuralMeshSimplification(
+            device=self.device,
             input_dim=config["model"]["input_dim"],
             hidden_dim=config["model"]["hidden_dim"],
             edge_hidden_dim=config["model"]["edge_hidden_dim"],
@@ -36,7 +37,7 @@ class Trainer:
             k=config["model"]["k"],
             edge_k=config["model"]["edge_k"],
             target_ratio=config["model"]["target_ratio"],
-        ).to(self.device)
+        )
 
         logger.debug("Setting up optimizer and loss...")
         self.optimizer = Adam(
@@ -111,7 +112,10 @@ class Trainer:
                 for param in self.model.parameters():
                     param.data *= weight_decay
 
+            # Save the checkpoint
             self._save_checkpoint(epoch, val_loss)
+
+            # Early stop as required
             if self._early_stopping(val_loss):
                 logging.info("Early stopping triggered.")
                 break
@@ -125,14 +129,13 @@ class Trainer:
             logger.debug(f"Processing batch {batch_idx + 1}")
             try:
                 self.optimizer.zero_grad()
-                batch = batch.to(self.device)
                 output = self.model(batch)
                 loss = self.criterion(batch, output)
-                loss.backward()
-                self.optimizer.step()
 
                 del batch
 
+                loss.backward()
+                self.optimizer.step()
                 running_loss += loss.item()
 
             except Exception as e:
@@ -206,7 +209,6 @@ class Trainer:
         }
         with torch.no_grad():
             for batch in data_loader:
-                batch = batch.to(self.device)
                 output = self.model(batch)
 
                 # TODO: Define methods that can operate on a batch instead of a trimesh object
