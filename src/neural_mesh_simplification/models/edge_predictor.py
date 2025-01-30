@@ -1,3 +1,5 @@
+import warnings
+
 import torch
 import torch.nn as nn
 from torch_geometric.nn import knn_graph
@@ -5,6 +7,8 @@ from torch_scatter import scatter_softmax
 from torch_sparse import SparseTensor
 
 from .layers.devconv import DevConv
+
+warnings.filterwarnings("ignore", message="Sparse CSR tensor support is in beta state")
 
 
 class EdgePredictor(nn.Module):
@@ -101,8 +105,8 @@ class EdgePredictor(nn.Module):
             trust_data=True,  # Since we verified the indices above
         )
 
-        # Compute A_s = S * A * S^T
-        A_s = S @ A @ S.t()
+        # Compute A_s = S * A * S^T using coalesced sparse tensors
+        A_s = S.matmul(A).matmul(S.t())
 
         # Convert to COO format
         row, col, value = A_s.coo()

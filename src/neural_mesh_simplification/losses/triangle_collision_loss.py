@@ -4,7 +4,7 @@ import torch.nn as nn
 
 class TriangleCollisionLoss(nn.Module):
     def __init__(
-            self, epsilon=1e-8, k=50, collision_threshold=1e-10, normal_threshold=0.99
+        self, epsilon=1e-8, k=50, collision_threshold=1e-10, normal_threshold=0.99
     ):
         super().__init__()
         self.epsilon = epsilon
@@ -34,7 +34,7 @@ class TriangleCollisionLoss(nn.Module):
         v0, v1, v2 = vertices[faces[:, 0]], vertices[faces[:, 1]], vertices[faces[:, 2]]
         face_normals = torch.linalg.cross(v1 - v0, v2 - v0)
         face_normals = face_normals / (
-                torch.norm(face_normals, dim=1, keepdim=True) + self.epsilon
+            torch.norm(face_normals, dim=1, keepdim=True) + self.epsilon
         )
         centroids = (v0 + v1 + v2) / 3
 
@@ -71,19 +71,19 @@ class TriangleCollisionLoss(nn.Module):
         return total_loss
 
     def check_triangle_intersection(
-            self,
-            v0,
-            v1,
-            v2,
-            normal,
-            nearby_v0,
-            nearby_v1,
-            nearby_v2,
-            nearby_normals,
-            face,
-            nearby_faces,
-            centroid,
-            nearby_centroids,
+        self,
+        v0,
+        v1,
+        v2,
+        normal,
+        nearby_v0,
+        nearby_v1,
+        nearby_v2,
+        nearby_normals,
+        face,
+        nearby_faces,
+        centroid,
+        nearby_centroids,
     ):
         # Check if triangles are coplanar (relaxed condition)
         normal_dot = torch.abs(torch.sum(normal * nearby_normals, dim=1))
@@ -106,7 +106,7 @@ class TriangleCollisionLoss(nn.Module):
 
         # Check if triangles are adjacent
         adjacent = torch.tensor(
-            [len(set(face.tolist()) & set(nf.tolist())) >= 2 for nf in nearby_faces]
+            [len(set(face.tolist()) & set(nf.tolist())) >= 2 for nf in nearby_faces], device=v0.device
         )
 
         collisions = intersections & ~adjacent

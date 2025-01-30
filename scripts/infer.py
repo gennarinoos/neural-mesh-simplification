@@ -21,16 +21,16 @@ def parse_args():
 
 
 def simplify_mesh(
-        input_file: str,
-        output_file: str,
-        model_checkpoint: str,
-        hidden_dim: int,
-        edge_hidden_dim: int,
-        device='cpu'
+    input_file: str,
+    output_file: str,
+    model_checkpoint: str,
+    hidden_dim: int,
+    edge_hidden_dim: int,
+    device='cpu'
 ):
     """
     Simplifies a 3D mesh using a trained model.
-    
+
     Args:
         input_file (str): Path to the high-resolution input `.obj` file.
         model_checkpoint (str): Path to the trained model checkpoint.

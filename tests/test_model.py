@@ -1,7 +1,7 @@
 import pytest
 import torch
-from torch_geometric.data import Data
 import torch_geometric.utils
+from torch_geometric.data import Data
 
 from neural_mesh_simplification.models import NeuralMeshSimplification
 
@@ -30,8 +30,10 @@ def test_neural_mesh_simplification_forward(sample_data: Data):
         input_dim=3,
         hidden_dim=64,
         edge_hidden_dim=64,
-        target_ratio=0.5,  # Ensure we sample roughly half the vertices
+        num_layers=3,
         k=3,  # Reduce k to avoid too many edges in the test
+        edge_k=15,
+        target_ratio=0.5  # Ensure we sample roughly half the vertices
     )
 
     # First test point sampling
@@ -111,7 +113,15 @@ def test_neural_mesh_simplification_forward(sample_data: Data):
 
 
 def test_generate_candidate_triangles():
-    model = NeuralMeshSimplification(input_dim=3, hidden_dim=64, edge_hidden_dim=64)
+    model = NeuralMeshSimplification(
+        input_dim=3,
+        hidden_dim=64,
+        edge_hidden_dim=64,
+        num_layers=3,
+        k=5,
+        edge_k=15,
+        target_ratio=0.5
+    )
     edge_index = torch.tensor(
         [[0, 1, 1, 2, 3, 4], [1, 0, 2, 1, 4, 3]], dtype=torch.long
     )

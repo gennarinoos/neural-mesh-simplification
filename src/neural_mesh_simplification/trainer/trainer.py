@@ -20,6 +20,7 @@ class Trainer:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         logger.info("Initializing trainer...")
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logger.info(f"Using device: {self.device}")
 
@@ -34,7 +35,7 @@ class Trainer:
             target_ratio=config["model"]["target_ratio"],
         ).to(self.device)
 
-        logger.info("Setting up optimizer and loss...")
+        logger.debug("Setting up optimizer and loss...")
         self.optimizer = Adam(
             self.model.parameters(), lr=config["training"]["learning_rate"]
         )
@@ -52,14 +53,14 @@ class Trainer:
         self.checkpoint_dir = config["training"]["checkpoint_dir"]
         os.makedirs(self.checkpoint_dir, exist_ok=True)
 
-        logger.info("Preparing data loaders...")
+        logger.debug("Preparing data loaders...")
         self.train_loader, self.val_loader = self._prepare_data_loaders()
         logger.info("Trainer initialization complete.")
 
     def _prepare_data_loaders(self):
         logger.info(f"Loading dataset from {self.config['data']['data_dir']}")
         dataset = MeshSimplificationDataset(data_dir=self.config["data"]["data_dir"])
-        logger.info(f"Dataset size: {len(dataset)}")
+        logger.debug(f"Dataset size: {len(dataset)}")
 
         val_size = int(len(dataset) * self.config["data"]["val_split"])
         train_size = len(dataset) - val_size
@@ -68,19 +69,21 @@ class Trainer:
         train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
         assert len(val_dataset) > 0, \
             f"There is not enough data to define an evaluation set. len(dataset)={len(dataset)}, train_size={train_size}, val_size={val_size}"
+
         train_loader = DataLoader(
             train_dataset,
             batch_size=self.config["training"]["batch_size"],
             shuffle=True,
             num_workers=self.config["data"]["num_workers"],
-            follow_batch=["x", "pos"],
+            follow_batch=["x", "pos"]
         )
+
         val_loader = DataLoader(
             val_dataset,
-            batch_size=self.config["training"]["batch_size"],
+            batch_size=self.config["training"]["batch_size"] * 2,  # Larger batch size for validation
             shuffle=False,
             num_workers=self.config["data"]["num_workers"],
-            follow_batch=["x", "pos"],
+            follow_batch=["x", "pos"]
         )
         logger.info("Data loaders prepared successfully")
 
@@ -88,8 +91,15 @@ class Trainer:
 
     def train(self):
         for epoch in range(self.config["training"]["num_epochs"]):
-            self._train_one_epoch(epoch)
+            loss = self._train_one_epoch(epoch)
+
+            logging.info(
+                f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Loss: {loss / len(self.train_loader)}"
+            )
+
             val_loss = self._validate(epoch)
+            logging.info(f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Validation Loss: {val_loss}")
+
             self.scheduler.step(val_loss)
 
             # Apply weight decay after each epoch (as per paper)
@@ -103,16 +113,16 @@ class Trainer:
                 logging.info("Early stopping triggered.")
                 break
 
-    def _train_one_epoch(self, epoch: int):
+    def _train_one_epoch(self, epoch: int) -> float:
         self.model.train()
         running_loss = 0.0
         logger.debug(f"Starting epoch {epoch + 1}")
+
         for batch_idx, batch in enumerate(self.train_loader):
             logger.debug(f"Processing batch {batch_idx + 1}")
             try:
                 self.optimizer.zero_grad()
-                batch = batch.to(self.device)
-
+                # batch = batch.to(self.device)
                 output = self.model(batch)
                 loss = self.criterion(batch, output)
                 loss.backward()
@@ -125,28 +135,25 @@ class Trainer:
             except Exception as e:
                 logger.error(f"Error in batch {batch_idx + 1}: {str(e)}")
                 raise e
-        logging.info(
-            f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Loss: {running_loss / len(self.train_loader)}"
-        )
+
+        return running_loss
 
     def _validate(self, epoch: int) -> float:
         self.model.eval()
         val_loss = 0.0
         with torch.no_grad():
             for batch in self.val_loader:
-                batch = batch.to(self.device)
                 output = self.model(batch)
                 loss = self.criterion(batch, output)
                 val_loss += loss.item()
+
         val_loss /= len(self.val_loader)
-        logging.info(f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Validation Loss: {val_loss}")
         return val_loss
 
     def _save_checkpoint(self, epoch: int, val_loss: float):
         checkpoint_path = os.path.join(self.checkpoint_dir, f"checkpoint_epoch_{epoch + 1}.pth")
 
         logging.debug(f"Saving checkpoint to {checkpoint_path}")
-
         torch.save(
             {
                 "epoch": epoch + 1,
@@ -159,7 +166,13 @@ class Trainer:
         if val_loss < self.best_val_loss:
             self.best_val_loss = val_loss
             best_model_path = os.path.join(self.checkpoint_dir, "best_model.pth")
+            logging.debug(f"Saving best model to {best_model_path}")
             torch.save(self.model.state_dict(), best_model_path)
+
+            # Remove old checkpoints to save space
+            for old_checkpoint in os.listdir(self.checkpoint_dir):
+                if old_checkpoint.startswith("checkpoint_") and old_checkpoint != f"checkpoint_epoch_{epoch + 1}.pth":
+                    os.remove(os.path.join(self.checkpoint_dir, old_checkpoint))
 
     def _early_stopping(self, val_loss: float) -> bool:
         if val_loss < self.best_val_loss:

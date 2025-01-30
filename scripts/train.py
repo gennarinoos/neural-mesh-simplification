@@ -2,7 +2,7 @@ import argparse
 import logging
 import os
 
-from neural_mesh_simplification.trainer.trainer import Trainer
+from neural_mesh_simplification.trainer import Trainer
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 default_config_path = os.path.join(script_dir, "../configs/default.yaml")
