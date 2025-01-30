@@ -37,7 +37,7 @@ class OverlappingTrianglesLoss(nn.Module):
         return overlap_penalty
 
     def sample_points_from_triangles(
-            self, vertices: torch.Tensor, faces: torch.Tensor
+        self, vertices: torch.Tensor, faces: torch.Tensor
     ) -> torch.Tensor:
         """
         Samples points from each triangle in the mesh.
@@ -65,7 +65,7 @@ class OverlappingTrianglesLoss(nn.Module):
 
         # Calculate the coordinates of the sampled points
         points = (
-                v0.unsqueeze(1) * (1 - u - v) + v1.unsqueeze(1) * u + v2.unsqueeze(1) * v
+            v0.unsqueeze(1) * (1 - u - v) + v1.unsqueeze(1) * u + v2.unsqueeze(1) * v
         )
 
         # Reshape to a (F * num_samples x 3) tensor
@@ -74,7 +74,7 @@ class OverlappingTrianglesLoss(nn.Module):
         return sampled_points
 
     def find_nearest_triangles(
-            self, sampled_points: torch.Tensor, vertices: torch.Tensor, faces: torch.Tensor
+        self, sampled_points: torch.Tensor, vertices: torch.Tensor, faces: torch.Tensor
     ) -> torch.Tensor:
         """
         Finds the k-nearest triangles for each sampled point.
@@ -107,11 +107,11 @@ class OverlappingTrianglesLoss(nn.Module):
         return indices
 
     def calculate_overlap_loss(
-            self,
-            sampled_points: torch.Tensor,
-            vertices: torch.Tensor,
-            faces: torch.Tensor,
-            nearest_triangles: torch.Tensor,
+        self,
+        sampled_points: torch.Tensor,
+        vertices: torch.Tensor,
+        faces: torch.Tensor,
+        nearest_triangles: torch.Tensor,
     ) -> torch.Tensor:
         """
         Calculates the overlap loss by checking if sampled points belong to multiple triangles.
@@ -143,7 +143,7 @@ class OverlappingTrianglesLoss(nn.Module):
         return overlap_penalty
 
     def calculate_area(
-            self, point: torch.Tensor, v0: torch.Tensor, v1: torch.Tensor, v2: torch.Tensor
+        self, point: torch.Tensor, v0: torch.Tensor, v1: torch.Tensor, v2: torch.Tensor
     ) -> float:
         """
         Calculates the area of a triangle formed by the point and a triangle's vertices.
@@ -156,15 +156,15 @@ class OverlappingTrianglesLoss(nn.Module):
             float: The area of the triangle formed by the point and the triangle's vertices.
         """
         # Vector cross product to calculate area
-        cross_prod = torch.cross(v1 - v0, v2 - v0)
+        cross_prod = torch.linalg.cross(v1 - v0, v2 - v0)
         area = 0.5 * torch.norm(cross_prod)
 
         # Check if the point lies within the triangle
         # Barycentric coordinates or area comparison can be used
         if torch.abs(area) > 1e-6:  # Ensure it's a valid triangle
-            u = torch.cross(v2 - v1, point - v1).dot(cross_prod)
-            v = torch.cross(v0 - v2, point - v2).dot(cross_prod)
-            w = torch.cross(v1 - v0, point - v0).dot(cross_prod)
+            u = torch.linalg.cross(v2 - v1, point - v1).dot(cross_prod)
+            v = torch.linalg.cross(v0 - v2, point - v2).dot(cross_prod)
+            w = torch.linalg.cross(v1 - v0, point - v0).dot(cross_prod)
             if u >= 0 and v >= 0 and w >= 0:
                 return area
 
