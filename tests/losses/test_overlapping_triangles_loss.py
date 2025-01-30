@@ -1,5 +1,6 @@
-import torch
 import pytest
+import torch
+
 from neural_mesh_simplification.losses import OverlappingTrianglesLoss
 
 
@@ -30,7 +31,9 @@ def sample_data():
 def test_sample_points_from_triangles(loss_fn, sample_data):
     vertices, faces = sample_data
 
-    sampled_points = loss_fn.sample_points_from_triangles(vertices, faces)
+    sampled_points, point_face_indices = loss_fn.sample_points_from_triangles(vertices, faces)
+
+    assert (sampled_points.shape[0] == point_face_indices.shape[0])
 
     # Check the shape of the sampled points
     expected_shape = (faces.shape[0] * loss_fn.num_samples, 3)
@@ -50,7 +53,7 @@ def test_sample_points_from_triangles(loss_fn, sample_data):
 def test_find_nearest_triangles(loss_fn, sample_data):
     vertices, faces = sample_data
 
-    sampled_points = loss_fn.sample_points_from_triangles(vertices, faces)
+    sampled_points, _ = loss_fn.sample_points_from_triangles(vertices, faces)
     nearest_triangles = loss_fn.find_nearest_triangles(sampled_points, vertices, faces)
 
     # Check the shape of the nearest triangles tensor
@@ -68,10 +71,10 @@ def test_find_nearest_triangles(loss_fn, sample_data):
 def test_calculate_overlap_loss(loss_fn, sample_data):
     vertices, faces = sample_data
 
-    sampled_points = loss_fn.sample_points_from_triangles(vertices, faces)
+    sampled_points, point_face_indices = loss_fn.sample_points_from_triangles(vertices, faces)
     nearest_triangles = loss_fn.find_nearest_triangles(sampled_points, vertices, faces)
     overlap_loss = loss_fn.calculate_overlap_loss(
-        sampled_points, vertices, faces, nearest_triangles
+        sampled_points, vertices, faces, nearest_triangles, point_face_indices
     )
 
     # Check that the overlap loss is a scalar
