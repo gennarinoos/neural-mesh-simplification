@@ -14,7 +14,7 @@ training:
   weight_decay: 0.99 # weight decay per epoch (as per paper)
   batch_size: 1
   num_epochs: 2 # total training epochs
-  early_stopping_patience: 2 # epochs before early stopping
+  early_stopping_patience: 3 # epochs before early stopping
   checkpoint_dir: data/checkpoints # model save directory
 
 # Data parameters
