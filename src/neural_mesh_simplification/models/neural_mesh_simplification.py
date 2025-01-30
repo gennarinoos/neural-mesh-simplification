@@ -12,10 +12,10 @@ class NeuralMeshSimplification(nn.Module):
         input_dim,
         hidden_dim,
         edge_hidden_dim,  # Separate hidden dim for edge predictor
-        num_layers=3,
-        k=5,
-        edge_k=15,
-        target_ratio=0.5,
+        num_layers,
+        k,
+        edge_k,
+        target_ratio,
     ):
         super(NeuralMeshSimplification, self).__init__()
         self.point_sampler = PointSampler(input_dim, hidden_dim, num_layers)
@@ -32,8 +32,6 @@ class NeuralMeshSimplification(nn.Module):
         x, edge_index = data.x, data.edge_index
         num_nodes = x.size(0)
 
-        # Uncomment this line to avoid point sampling
-        # sampled_indices, sampled_probs = torch.arange(0, num_nodes), torch.ones(num_nodes)
         sampled_indices, sampled_probs = self.sample_points(data)
 
         sampled_x = x[sampled_indices]
@@ -165,8 +163,8 @@ class NeuralMeshSimplification(nn.Module):
 
                         # Calculate triangle probability
                         prob = (
-                            adj_matrix[i, n1] * adj_matrix[i, n2] * adj_matrix[n1, n2]
-                        ) ** (1 / 3)
+                                   adj_matrix[i, n1] * adj_matrix[i, n2] * adj_matrix[n1, n2]
+                               ) ** (1 / 3)
                         triangle_probs.append(prob)
 
         if triangles:
