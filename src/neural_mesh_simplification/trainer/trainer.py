@@ -83,7 +83,7 @@ class Trainer:
 
         val_loader = DataLoader(
             val_dataset,
-            batch_size=self.config["training"]["batch_size"] * 2,  # Larger batch size for validation
+            batch_size=self.config["training"]["batch_size"],
             shuffle=False,
             num_workers=self.config["data"]["num_workers"],
             follow_batch=["x", "pos"]
@@ -130,10 +130,11 @@ class Trainer:
                 loss = self.criterion(batch, output)
                 loss.backward()
                 self.optimizer.step()
-                running_loss += loss.item()
 
                 if (batch_idx + 1) % 10 == 0:
                     logger.info(f"Batch {batch_idx + 1} - Loss: {loss.item():.4f}")
+                del batch
+                running_loss += loss.item()
 
             except Exception as e:
                 logger.error(f"Error in batch {batch_idx + 1}: {str(e)}")
