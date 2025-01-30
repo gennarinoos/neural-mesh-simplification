@@ -11,15 +11,21 @@ class ProbabilisticSurfaceDistanceLoss(nn.Module):
         self.epsilon = epsilon
 
     def forward(
-            self,
-            original_vertices: torch.Tensor,
-            original_faces: torch.Tensor,
-            simplified_vertices: torch.Tensor,
-            simplified_faces: torch.Tensor,
-            face_probabilities: torch.Tensor,
+        self,
+        original_vertices: torch.Tensor,
+        original_faces: torch.Tensor,
+        simplified_vertices: torch.Tensor,
+        simplified_faces: torch.Tensor,
+        face_probabilities: torch.Tensor,
     ) -> torch.Tensor:
         if original_vertices.shape[0] == 0 or simplified_vertices.shape[0] == 0:
             return torch.tensor(0.0, device=original_vertices.device)
+
+        # Pad face probabilities once for both terms
+        face_probabilities = torch.nn.functional.pad(
+            face_probabilities,
+            (0, max(0, simplified_faces.shape[0] - face_probabilities.shape[0]))
+        )[:simplified_faces.shape[0]]
 
         forward_term = self.compute_forward_term(
             original_vertices,
@@ -41,12 +47,12 @@ class ProbabilisticSurfaceDistanceLoss(nn.Module):
         return total_loss
 
     def compute_forward_term(
-            self,
-            original_vertices: torch.Tensor,
-            original_faces: torch.Tensor,
-            simplified_vertices: torch.Tensor,
-            simplified_faces: torch.Tensor,
-            face_probabilities: torch.Tensor,
+        self,
+        original_vertices: torch.Tensor,
+        original_faces: torch.Tensor,
+        simplified_vertices: torch.Tensor,
+        simplified_faces: torch.Tensor,
+        face_probabilities: torch.Tensor,
     ) -> torch.Tensor:
         # If there are no faces, return zero loss
         if simplified_faces.shape[0] == 0:
@@ -65,36 +71,23 @@ class ProbabilisticSurfaceDistanceLoss(nn.Module):
 
         min_distances, _ = distances.min(dim=1)
 
-        # Ensure face_probabilities matches the number of simplified faces
-        if face_probabilities.shape[0] > simplified_faces.shape[0]:
-            face_probabilities = face_probabilities[: simplified_faces.shape[0]]
-        elif face_probabilities.shape[0] < simplified_faces.shape[0]:
-            # Pad with zeros if we have fewer probabilities than faces
-            padding = torch.zeros(
-                simplified_faces.shape[0] - face_probabilities.shape[0],
-                device=face_probabilities.device,
-            )
-            face_probabilities = torch.cat([face_probabilities, padding])
+        del distances  # Free memory
 
-        # Weight distances by face probabilities
-        weighted_distances = face_probabilities * min_distances
-
-        total_loss = weighted_distances.sum()
-
-        # Ensure face probabilities affect the loss even when distances are zero
+        # Compute total loss with probability penalty
+        total_loss = (face_probabilities * min_distances).sum()
         probability_penalty = 1e-4 * (1.0 - face_probabilities).sum()
 
-        total_loss += probability_penalty
+        del min_distances  # Free memory
 
-        return total_loss
+        return total_loss + probability_penalty
 
     def compute_reverse_term(
-            self,
-            original_vertices: torch.Tensor,
-            original_faces: torch.Tensor,
-            simplified_vertices: torch.Tensor,
-            simplified_faces: torch.Tensor,
-            face_probabilities: torch.Tensor,
+        self,
+        original_vertices: torch.Tensor,
+        original_faces: torch.Tensor,
+        simplified_vertices: torch.Tensor,
+        simplified_faces: torch.Tensor,
+        face_probabilities: torch.Tensor,
     ) -> torch.Tensor:
         # If there are no faces, return zero loss
         if simplified_faces.shape[0] == 0:
@@ -102,92 +95,98 @@ class ProbabilisticSurfaceDistanceLoss(nn.Module):
 
         # If meshes are identical, reverse term should be zero
         if torch.equal(original_vertices, simplified_vertices) and torch.equal(
-                original_faces, simplified_faces
+            original_faces, simplified_faces
         ):
             return torch.tensor(0.0, device=original_vertices.device)
 
         # Step 1: Sample points from the simplified mesh
         sampled_points = self.sample_points_from_triangles(
-            simplified_vertices, simplified_faces, self.num_samples
-        )
-
-        # Step 2: Compute the minimum distance from each sampled point to the original mesh
-        min_distances_to_original = self.compute_min_distances_to_original(
-            sampled_points, original_vertices
-        ).float()
-
-        # Normalize the distances to prevent large values
-        normalized_distances = min_distances_to_original / (
-                min_distances_to_original.max() + self.epsilon
-        )
-
-        # Further scaling to reduce the impact
-        scaled_distances = normalized_distances * 0.1
-
-        # Ensure face_probabilities matches the number of simplified faces
-        if face_probabilities.shape[0] > simplified_faces.shape[0]:
-            face_probabilities = face_probabilities[: simplified_faces.shape[0]]
-        elif face_probabilities.shape[0] < simplified_faces.shape[0]:
-            # Pad with zeros if we have fewer probabilities than faces
-            padding = torch.zeros(
-                simplified_faces.shape[0] - face_probabilities.shape[0],
-                device=face_probabilities.device,
-            )
-            face_probabilities = torch.cat([face_probabilities, padding])
-        # Reshape face probabilities to match the sampled points
-        face_probabilities_expanded = face_probabilities.repeat_interleave(
+            simplified_vertices,
+            simplified_faces,
             self.num_samples
         )
 
-        # Weight by face probabilities
-        weighted_min_distances = face_probabilities_expanded * scaled_distances
+        # Step 2: Compute the minimum distance from each sampled point to the original mesh
+        distances = self.compute_min_distances_to_original(
+            sampled_points,
+            original_vertices
+        )
 
-        # Return the sum as the reverse term
-        reverse_term = weighted_min_distances.sum()
+        # Normalize and scale distances
+        max_dist = distances.max() + self.epsilon
+        scaled_distances = (distances / max_dist) * 0.1
+
+        del distances  # Free memory
+
+        # Reshape face probabilities to match the sampled points
+        face_probs_expanded = face_probabilities.repeat_interleave(
+            self.num_samples
+        )
+
+        # Compute weighted distances
+        reverse_term = (face_probs_expanded * scaled_distances).sum()
 
         return reverse_term
 
-    def compute_min_distances_to_original(
-            self, sampled_points: torch.Tensor, original_vertices: torch.Tensor
-    ) -> torch.Tensor:
-        distances, _ = knn(original_vertices.float(), sampled_points.float(), k=1)
-        return distances.view(-1).float()  # Convert to float
-
-    def compute_barycenters(
-            self, vertices: torch.Tensor, faces: torch.Tensor
-    ) -> torch.Tensor:
-        return vertices[faces].mean(dim=1)
-
     def sample_points_from_triangles(
-            self, vertices: torch.Tensor, faces: torch.Tensor, num_samples: int
+        self,
+        vertices: torch.Tensor,
+        faces: torch.Tensor,
+        num_samples: int
     ) -> torch.Tensor:
+        """Vectorized point sampling from triangles"""
         num_faces = faces.shape[0]
         face_vertices = vertices[faces]
 
-        r1 = torch.sqrt(torch.rand(num_faces, num_samples, 1, device=vertices.device))
-        r2 = torch.rand(num_faces, num_samples, 1, device=vertices.device)
-
-        a = 1 - r1
-        b = r1 * (1 - r2)
-        c = r1 * r2
-
-        samples = (
-                a * face_vertices[:, None, 0]
-                + b * face_vertices[:, None, 1]
-                + c * face_vertices[:, None, 2]
+        # Generate random values for all samples at once
+        sqrt_r1 = torch.sqrt(torch.rand(
+            num_faces, num_samples, 1,
+            device=vertices.device
+        ))
+        r2 = torch.rand(
+            num_faces, num_samples, 1,
+            device=vertices.device
         )
 
-        return samples.view(-1, 3)
+        # Compute barycentric coordinates
+        a = 1 - sqrt_r1
+        b = sqrt_r1 * (1 - r2)
+        c = sqrt_r1 * r2
 
-    def compute_squared_distances(
-            self, barycenters1: torch.Tensor, barycenters2: torch.Tensor
+        # Compute samples using broadcasting
+        samples = (
+            a * face_vertices[:, None, 0] +
+            b * face_vertices[:, None, 1] +
+            c * face_vertices[:, None, 2]
+        )
+
+        del a, b, c, sqrt_r1, r2, face_vertices  # Free memory
+
+        return samples.reshape(-1, 3)
+
+    def compute_min_distances_to_original(
+        self,
+        sampled_points: torch.Tensor,
+        target_vertices: torch.Tensor
     ) -> torch.Tensor:
-        num_faces1 = barycenters1.size(0)
-        num_faces2 = barycenters2.size(0)
+        """Efficient batch distance computation using KNN"""
+        # Convert to float32 for KNN
+        sp_float = sampled_points.float()
+        tv_float = target_vertices.float()
 
-        barycenters1_exp = barycenters1.unsqueeze(1).expand(num_faces1, num_faces2, 3)
-        barycenters2_exp = barycenters2.unsqueeze(0).expand(num_faces1, num_faces2, 3)
+        # Compute KNN distances
+        distances, _ = knn(tv_float, sp_float, k=1)
 
-        distances = torch.sum((barycenters1_exp - barycenters2_exp) ** 2, dim=2)
+        del sp_float, tv_float  # Free memory
 
-        return distances.float()  # Convert to float
+        return distances.view(-1).float()
+
+    @staticmethod
+    def compute_squared_distances(points1: torch.Tensor, points2: torch.Tensor) -> torch.Tensor:
+        """Compute squared distances efficiently using torch.cdist"""
+        return torch.cdist(points1, points2, p=2).float()
+
+    def compute_barycenters(
+        self, vertices: torch.Tensor, faces: torch.Tensor
+    ) -> torch.Tensor:
+        return vertices[faces].mean(dim=1)

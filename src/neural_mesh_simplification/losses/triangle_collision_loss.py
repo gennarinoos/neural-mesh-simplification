@@ -19,29 +19,35 @@ class TriangleCollisionLoss(nn.Module):
             return torch.tensor(0.0, device=vertices.device)
 
         # Ensure face_probabilities matches the number of faces
-        if face_probabilities.shape[0] > num_faces:
-            face_probabilities = face_probabilities[:num_faces]
-        elif face_probabilities.shape[0] < num_faces:
-            # Pad with zeros if we have fewer probabilities than faces
-            padding = torch.zeros(
-                num_faces - face_probabilities.shape[0],
-                device=face_probabilities.device,
-            )
-            face_probabilities = torch.cat([face_probabilities, padding])
+        face_probabilities = torch.nn.functional.pad(
+            face_probabilities, (0, max(0, num_faces - face_probabilities.shape[0]))
+        )[:num_faces]
 
-        collision_count = torch.zeros(num_faces, device=vertices.device)
+        v0, v1, v2 = vertices[faces].unbind(1)
 
-        v0, v1, v2 = vertices[faces[:, 0]], vertices[faces[:, 1]], vertices[faces[:, 2]]
-        face_normals = torch.linalg.cross(v1 - v0, v2 - v0)
-        face_normals = face_normals / (
-            torch.norm(face_normals, dim=1, keepdim=True) + self.epsilon
-        )
+        # Calculate face normals more efficiently
+        edges1 = v1 - v0
+        edges2 = v2 - v0
+        face_normals = torch.linalg.cross(edges1, edges2)
+        face_normal_lengths = torch.norm(face_normals, dim=1, keepdim=True)
+        face_normals = face_normals / (face_normal_lengths + self.epsilon)
+
+        del edges1, edges2, face_normal_lengths  # No longer needed
+
+        # Calculate centroids
         centroids = (v0 + v1 + v2) / 3
 
-        distances = torch.cdist(centroids, centroids)
+        # Find k nearest neighbors using squared distances
+        diffs = centroids.unsqueeze(1) - centroids.unsqueeze(0)
+        distances = torch.sum(diffs * diffs, dim=-1)
+        del diffs  # Large tensor no longer needed
+
         k = min(self.k, num_faces - 1)
         _, neighbors = torch.topk(distances, k=k + 1, largest=False)
+        del distances  # Large matrix no longer needed
         neighbors = neighbors[:, 1:]
+
+        collision_count = torch.zeros(num_faces, device=vertices.device)
 
         for i in range(num_faces):
             nearby_faces = neighbors[i]
@@ -106,7 +112,9 @@ class TriangleCollisionLoss(nn.Module):
 
         # Check if triangles are adjacent
         adjacent = torch.tensor(
-            [len(set(face.tolist()) & set(nf.tolist())) >= 2 for nf in nearby_faces], device=v0.device
+            [len(set(face.tolist()) & set(nf.tolist())) >= 2 for nf in nearby_faces],
+            dtype=torch.bool,
+            device=v0.device
         )
 
         collisions = intersections & ~adjacent

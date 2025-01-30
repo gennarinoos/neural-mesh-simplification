@@ -38,7 +38,7 @@ class EdgeCrossingLoss(nn.Module):
         return loss
 
     def find_nearest_triangles(
-            self, vertices: torch.Tensor, faces: torch.Tensor
+        self, vertices: torch.Tensor, faces: torch.Tensor
     ) -> torch.Tensor:
         # Compute triangle centroids
         centroids = vertices[faces].mean(dim=1)
@@ -69,79 +69,32 @@ class EdgeCrossingLoss(nn.Module):
         return nearest
 
     def detect_edge_crossings(
-            self,
-            vertices: torch.Tensor,
-            faces: torch.Tensor,
-            nearest_triangles: torch.Tensor,
+        self,
+        vertices: torch.Tensor,
+        faces: torch.Tensor,
+        nearest_triangles: torch.Tensor,
     ) -> torch.Tensor:
-        def edges_of_triangle(triangle):
+        def edge_vectors(triangles):
             # Extracts the edges from a triangle defined by vertex indices
-            return [
-                (triangle[0], triangle[1]),
-                (triangle[1], triangle[2]),
-                (triangle[2], triangle[0]),
-            ]
+            return vertices[triangles[:, [1, 2, 0]]] - vertices[triangles]
 
-        def edge_crosses(edge1, edge2):
-            def vector(p1, p2):
-                return p2 - p1
+        edges = edge_vectors(faces)
+        crossings = torch.zeros(faces.shape[0], device=vertices.device)
 
-            def cross_product(v1, v2):
-                return torch.cross(v1, v2, dim=-1)
+        for i in range(faces.shape[0]):
+            neighbor_edges = edge_vectors(faces[nearest_triangles[i]])
+            for j in range(3):
+                edge = edges[i, j].unsqueeze(0).unsqueeze(0)
+                cross_product = torch.cross(edge.expand(neighbor_edges.shape), neighbor_edges, dim=-1)
+                t = torch.sum(cross_product * neighbor_edges, dim=-1) / torch.sum(cross_product * edge.expand(neighbor_edges.shape), dim=-1)
+                u = torch.sum(cross_product * edges[i].unsqueeze(0), dim=-1) / torch.sum(cross_product * edge.expand(neighbor_edges.shape), dim=-1)
+                mask = (t >= 0) & (t <= 1) & (u >= 0) & (u <= 1)
+                crossings[i] += mask.sum()
 
-            def dot_product(v1, v2):
-                return torch.dot(v1, v2)
-
-            def is_between(p, edge):
-                return torch.all(
-                    torch.abs(p - edge[0]) + torch.abs(p - edge[1])
-                    == torch.abs(edge[1] - edge[0])
-                )
-
-            # Edge1: (A, B), Edge2: (C, D)
-            A, B = vertices[edge1[0]], vertices[edge1[1]]
-            C, D = vertices[edge2[0]], vertices[edge2[1]]
-            AB = vector(A, B)
-            CD = vector(C, D)
-            AC = vector(A, C)
-            CA = vector(C, A)
-
-            # Check if lines are co-planar
-            if dot_product(cross_product(AB, AC), CD) == 0:
-                return False
-
-            # Check if edges are crossing
-            denom = dot_product(cross_product(AB, CD), CD)
-            if denom == 0:
-                return False
-
-            num = dot_product(cross_product(CA, CD), CD)
-            t = num / denom
-
-            if 0 <= t <= 1:
-                intersection = A + t * AB
-                return is_between(intersection, (C, D)) and is_between(
-                    intersection, (A, B)
-                )
-
-            return False
-
-        crossings = torch.zeros(
-            faces.shape[0], dtype=torch.float, device=vertices.device
-        )
-        for i, face in enumerate(faces):
-            for j in nearest_triangles[i]:
-                if j == -1:
-                    continue
-                for edge1 in edges_of_triangle(face):
-                    for edge2 in edges_of_triangle(faces[j]):
-                        if edge_crosses(edge1, edge2):
-                            crossings[i] += 1
         return crossings
 
     def calculate_loss(
-            self, crossings: torch.Tensor, face_probs: torch.Tensor
+        self, crossings: torch.Tensor, face_probs: torch.Tensor
     ) -> torch.Tensor:
         # Weighted sum of crossings by triangle probabilities
-        loss = torch.sum(face_probs * crossings)
-        return loss
+        return torch.sum(face_probs * crossings, dtype=torch.float32)

@@ -34,7 +34,7 @@ def main():
     config = load_config(config_path)
 
     if args.data_path:
-        config["data"]["data_path"] = args.data_path
+        config["data"]["data_dir"] = args.data_path
 
     if args.checkpoint_dir:
         config["training"]["checkpoint_dir"] = args.checkpoint_dir

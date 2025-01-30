@@ -21,7 +21,10 @@ class Trainer:
         self.config = config
         logger.info("Initializing trainer...")
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        else:
+            self.device = torch.device("cpu")
         logger.info(f"Using device: {self.device}")
 
         logger.info("Initializing model...")
@@ -80,7 +83,7 @@ class Trainer:
 
         val_loader = DataLoader(
             val_dataset,
-            batch_size=self.config["training"]["batch_size"] * 2,  # Larger batch size for validation
+            batch_size=self.config["training"]["batch_size"],
             shuffle=False,
             num_workers=self.config["data"]["num_workers"],
             follow_batch=["x", "pos"]
@@ -97,7 +100,7 @@ class Trainer:
                 f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Loss: {loss / len(self.train_loader)}"
             )
 
-            val_loss = self._validate(epoch)
+            val_loss = self._validate()
             logging.info(f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Validation Loss: {val_loss}")
 
             self.scheduler.step(val_loss)
@@ -122,15 +125,15 @@ class Trainer:
             logger.debug(f"Processing batch {batch_idx + 1}")
             try:
                 self.optimizer.zero_grad()
-                # batch = batch.to(self.device)
+                batch = batch.to(self.device)
                 output = self.model(batch)
                 loss = self.criterion(batch, output)
                 loss.backward()
                 self.optimizer.step()
-                running_loss += loss.item()
 
-                if (batch_idx + 1) % 10 == 0:
-                    logger.info(f"Batch {batch_idx + 1} - Loss: {loss.item():.4f}")
+                del batch
+
+                running_loss += loss.item()
 
             except Exception as e:
                 logger.error(f"Error in batch {batch_idx + 1}: {str(e)}")
@@ -138,7 +141,7 @@ class Trainer:
 
         return running_loss
 
-    def _validate(self, epoch: int) -> float:
+    def _validate(self) -> float:
         self.model.eval()
         val_loss = 0.0
         with torch.no_grad():
