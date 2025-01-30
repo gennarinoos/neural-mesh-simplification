@@ -131,9 +131,8 @@ class Trainer:
                 loss.backward()
                 self.optimizer.step()
 
-                if (batch_idx + 1) % 10 == 0:
-                    logger.info(f"Batch {batch_idx + 1} - Loss: {loss.item():.4f}")
                 del batch
+
                 running_loss += loss.item()
 
             except Exception as e:
