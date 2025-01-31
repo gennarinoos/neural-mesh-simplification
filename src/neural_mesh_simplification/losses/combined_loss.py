@@ -24,7 +24,7 @@ class CombinedMeshSimplificationLoss(nn.Module):
         self.prob_surface_loss = ProbabilisticSurfaceDistanceLoss().to(self.device)
         self.collision_loss = TriangleCollisionLoss().to(self.device)
         self.edge_crossing_loss = EdgeCrossingLoss().to(self.device)
-        self.overlapping_triangles_loss = OverlappingTrianglesLoss()
+        self.overlapping_triangles_loss = OverlappingTrianglesLoss().to(self.device)
         self.lambda_c = lambda_c
         self.lambda_e = lambda_e
         self.lambda_o = lambda_o
@@ -53,6 +53,10 @@ class CombinedMeshSimplificationLoss(nn.Module):
             sampled_faces,
             face_probs,
         )
+
+        del original_x
+        del original_face
+
         collision_loss = self.collision_loss(
             sampled_vertices,
             sampled_faces,
