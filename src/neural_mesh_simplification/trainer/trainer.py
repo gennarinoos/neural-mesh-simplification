@@ -29,7 +29,6 @@ class Trainer:
 
         logger.info("Initializing model...")
         self.model = NeuralMeshSimplification(
-            device=self.device,
             input_dim=config["model"]["input_dim"],
             hidden_dim=config["model"]["hidden_dim"],
             edge_hidden_dim=config["model"]["edge_hidden_dim"],
@@ -37,6 +36,7 @@ class Trainer:
             k=config["model"]["k"],
             edge_k=config["model"]["edge_k"],
             target_ratio=config["model"]["target_ratio"],
+            device=self.device,
         )
 
         logger.debug("Setting up optimizer and loss...")
@@ -50,6 +50,7 @@ class Trainer:
             lambda_c=config["loss"]["lambda_c"],
             lambda_e=config["loss"]["lambda_e"],
             lambda_o=config["loss"]["lambda_o"],
+            device=self.device,
         )
         self.early_stopping_patience = config["training"]["early_stopping_patience"]
         self.best_val_loss = float("inf")

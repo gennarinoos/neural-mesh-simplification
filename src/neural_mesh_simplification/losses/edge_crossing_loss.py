@@ -8,11 +8,12 @@ class EdgeCrossingLoss(nn.Module):
         super().__init__()
         self.k = k  # Number of nearest triangles to consider
 
-    def forward(self, simplified_data) -> torch.Tensor:
-        vertices = simplified_data["sampled_vertices"]
-        faces = simplified_data["simplified_faces"]
-        face_probs = simplified_data["face_probs"]
-
+    def forward(
+        self,
+        vertices: torch.Tensor,
+        faces: torch.Tensor,
+        face_probs: torch.Tensor
+    ) -> torch.Tensor:
         # If no faces, return zero loss
         if faces.shape[0] == 0:
             return torch.tensor(0.0, device=vertices.device)

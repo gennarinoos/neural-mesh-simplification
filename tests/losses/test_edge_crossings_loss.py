@@ -1,5 +1,6 @@
-import torch
 import pytest
+import torch
+
 from neural_mesh_simplification.losses import EdgeCrossingLoss
 
 
@@ -68,13 +69,7 @@ def test_edge_crossing_loss_full(loss_fn, sample_data):
     vertices, faces, face_probs = sample_data
 
     # Run the forward pass of the loss function
-    loss = loss_fn(
-        {
-            "sampled_vertices": vertices,
-            "simplified_faces": faces,
-            "face_probs": face_probs,
-        }
-    )
+    loss = loss_fn(vertices, faces, face_probs)
 
     # Check that the loss value is as expected
     # Ensure expected_loss is a floating-point tensor
