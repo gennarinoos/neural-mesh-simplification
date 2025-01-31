@@ -15,9 +15,7 @@ class OverlappingTrianglesLoss(nn.Module):
         self.num_samples = num_samples  # Number of points to sample from each triangle
         self.k = k  # Number of nearest triangles to consider
 
-    def forward(self, simplified_data):
-        vertices = simplified_data["sampled_vertices"]
-        faces = simplified_data["simplified_faces"]
+    def forward(self, vertices: torch.Tensor, faces: torch.Tensor):
 
         # If no faces, return zero loss
         if faces.shape[0] == 0:

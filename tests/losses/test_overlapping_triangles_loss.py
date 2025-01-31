@@ -89,10 +89,8 @@ def test_calculate_overlap_loss(loss_fn, sample_data):
 def test_overlapping_triangles_loss_full(loss_fn, sample_data):
     vertices, faces = sample_data
 
-    simplified_data = {"sampled_vertices": vertices, "simplified_faces": faces}
-
     # Run the forward pass of the loss function
-    loss = loss_fn(simplified_data)
+    loss = loss_fn(vertices, faces)
 
     # Check that the loss is a scalar
     assert isinstance(loss, torch.Tensor) and loss.dim() == 0, "Loss should be a scalar"
