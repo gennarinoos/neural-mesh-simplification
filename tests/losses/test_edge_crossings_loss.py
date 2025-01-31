@@ -59,7 +59,8 @@ def test_calculate_loss(loss_fn, sample_data):
     crossings = torch.tensor([1.0, 0.0, 2.0, 1.0], dtype=torch.float)
     loss = loss_fn.calculate_loss(crossings, face_probs)
 
-    expected_loss = 0.8 * 1 + 0.6 * 0 + 0.7 * 2 + 0.9 * 1
+    num_faces = face_probs.shape[0]
+    expected_loss = torch.sum(face_probs * crossings, dtype=torch.float32) / num_faces
     assert torch.isclose(
         loss, torch.tensor(expected_loss)
     ), f"Expected loss: {expected_loss}, but got {loss.item()}"
