@@ -97,4 +97,5 @@ class EdgeCrossingLoss(nn.Module):
         self, crossings: torch.Tensor, face_probs: torch.Tensor
     ) -> torch.Tensor:
         # Weighted sum of crossings by triangle probabilities
-        return torch.sum(face_probs * crossings, dtype=torch.float32)
+        num_faces = face_probs.shape[0]
+        return torch.sum(face_probs * crossings, dtype=torch.float32) / num_faces
