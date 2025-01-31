@@ -41,7 +41,9 @@ class Trainer:
 
         logger.debug("Setting up optimizer and loss...")
         self.optimizer = Adam(
-            self.model.parameters(), lr=config["training"]["learning_rate"]
+            self.model.parameters(),
+            lr=config["training"]["learning_rate"],
+            weight_decay=config["training"]["weight_decay"],
         )
         self.scheduler = ReduceLROnPlateau(
             self.optimizer, mode="min", factor=0.1, patience=10, verbose=True
@@ -106,12 +108,6 @@ class Trainer:
             logging.info(f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Validation Loss: {val_loss}")
 
             self.scheduler.step(val_loss)
-
-            # Apply weight decay after each epoch (as per paper)
-            weight_decay = self.config["training"]["weight_decay"]
-            with torch.no_grad():
-                for param in self.model.parameters():
-                    param.data *= weight_decay
 
             # Save the checkpoint
             self._save_checkpoint(epoch, val_loss)
