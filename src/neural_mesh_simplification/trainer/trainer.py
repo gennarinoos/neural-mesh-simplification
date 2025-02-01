@@ -87,11 +87,14 @@ class Trainer:
         assert len(val_dataset) > 0, \
             f"There is not enough data to define an evaluation set. len(dataset)={len(dataset)}, train_size={train_size}, val_size={val_size}"
 
+        num_workers = self.config["training"].get("num_workers", os.cpu_count())
+        logger.info(f"Using {num_workers} workers for data loading")
+
         train_loader = DataLoader(
             train_dataset,
             batch_size=self.config["training"]["batch_size"],
             shuffle=True,
-            num_workers=self.config["data"]["num_workers"],
+            num_workers=num_workers,
             follow_batch=["x", "pos"]
         )
 
@@ -99,7 +102,7 @@ class Trainer:
             val_dataset,
             batch_size=self.config["training"]["batch_size"],
             shuffle=False,
-            num_workers=self.config["data"]["num_workers"],
+            num_workers=num_workers,
             follow_batch=["x", "pos"]
         )
         logger.info("Data loaders prepared successfully")
@@ -152,6 +155,7 @@ class Trainer:
             loss = self.criterion(batch, output)
 
             del batch
+            del output
 
             loss.backward()
             self.optimizer.step()
