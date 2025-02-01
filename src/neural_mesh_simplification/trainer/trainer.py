@@ -1,5 +1,6 @@
 import logging
 import os
+from multiprocessing import Event, Process
 from typing import Dict, Any
 
 import torch
@@ -8,6 +9,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import random_split
 from torch_geometric.loader import DataLoader
 
+from .resource_monitor import monitor_resources
 from ..data import MeshSimplificationDataset
 from ..losses import CombinedMeshSimplificationLoss
 from ..metrics import chamfer_distance, normal_consistency, edge_preservation, hausdorff_distance
@@ -64,6 +66,14 @@ class Trainer:
         self.train_loader, self.val_loader = self._prepare_data_loaders()
         logger.info("Trainer initialization complete.")
 
+        if "monitor_resources" in config:
+            logger.info("Monitoring resource usage")
+            self.monitor_resources = True
+            self.stop_event = Event()
+            self.monitor_process = None
+        else:
+            self.monitor_resources = False
+
     def _prepare_data_loaders(self):
         logger.info(f"Loading dataset from {self.config['data']['data_dir']}")
         dataset = MeshSimplificationDataset(data_dir=self.config["data"]["data_dir"])
@@ -97,25 +107,38 @@ class Trainer:
         return train_loader, val_loader
 
     def train(self):
-        for epoch in range(self.config["training"]["num_epochs"]):
-            loss = self._train_one_epoch(epoch)
+        if self.monitor_resources:
+            main_pid = os.getpid()
+            self.monitor_process = Process(target=monitor_resources, args=(self.stop_event, main_pid))
+            self.monitor_process.start()
 
-            logging.info(
-                f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Loss: {loss / len(self.train_loader)}"
-            )
+        try:
+            for epoch in range(self.config["training"]["num_epochs"]):
+                loss = self._train_one_epoch(epoch)
 
-            val_loss = self._validate()
-            logging.info(f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Validation Loss: {val_loss}")
+                logging.info(
+                    f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Loss: {loss / len(self.train_loader)}"
+                )
 
-            self.scheduler.step(val_loss)
+                val_loss = self._validate()
+                logging.info(f"Epoch [{epoch + 1}/{self.config['training']['num_epochs']}], Validation Loss: {val_loss}")
 
-            # Save the checkpoint
-            self._save_checkpoint(epoch, val_loss)
+                self.scheduler.step(val_loss)
 
-            # Early stop as required
-            if self._early_stopping(val_loss):
-                logging.info("Early stopping triggered.")
-                break
+                # Save the checkpoint
+                self._save_checkpoint(epoch, val_loss)
+
+                # Early stop as required
+                if self._early_stopping(val_loss):
+                    logging.info("Early stopping triggered.")
+                    break
+        except Exception as e:
+            logger.error(f"{str(e)}")
+        finally:
+            if self.monitor_resources:
+                self.stop_event.set()
+                self.monitor_process.join()
+                print()  # New line after monitoring output
 
     def _train_one_epoch(self, epoch: int) -> float:
         self.model.train()
@@ -124,20 +147,15 @@ class Trainer:
 
         for batch_idx, batch in enumerate(self.train_loader):
             logger.debug(f"Processing batch {batch_idx + 1}")
-            try:
-                self.optimizer.zero_grad()
-                output = self.model(batch)
-                loss = self.criterion(batch, output)
+            self.optimizer.zero_grad()
+            output = self.model(batch)
+            loss = self.criterion(batch, output)
 
-                del batch
+            del batch
 
-                loss.backward()
-                self.optimizer.step()
-                running_loss += loss.item()
-
-            except Exception as e:
-                logger.error(f"Error in batch {batch_idx + 1}: {str(e)}")
-                raise e
+            loss.backward()
+            self.optimizer.step()
+            running_loss += loss.item()
 
         return running_loss
 
