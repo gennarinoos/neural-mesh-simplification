@@ -76,7 +76,10 @@ class Trainer:
 
     def _prepare_data_loaders(self):
         logger.info(f"Loading dataset from {self.config['data']['data_dir']}")
-        dataset = MeshSimplificationDataset(data_dir=self.config["data"]["data_dir"])
+        dataset = MeshSimplificationDataset(
+            data_dir=self.config["data"]["data_dir"],
+            preprocess=False  # Can be False, because data has been prepared before training
+        )
         logger.debug(f"Dataset size: {len(dataset)}")
 
         val_size = int(len(dataset) * self.config["data"]["val_split"])
