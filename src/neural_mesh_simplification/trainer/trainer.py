@@ -161,7 +161,7 @@ class Trainer:
             self.optimizer.step()
             running_loss += loss.item()
 
-        return running_loss
+        return running_loss / len(self.train_loader)
 
     def _validate(self) -> float:
         self.model.eval()
@@ -172,8 +172,7 @@ class Trainer:
                 loss = self.criterion(batch, output)
                 val_loss += loss.item()
 
-        val_loss /= len(self.val_loader)
-        return val_loss
+        return val_loss / len(self.val_loader)
 
     def _save_checkpoint(self, epoch: int, val_loss: float):
         checkpoint_path = os.path.join(self.checkpoint_dir, f"checkpoint_epoch_{epoch + 1}.pth")
