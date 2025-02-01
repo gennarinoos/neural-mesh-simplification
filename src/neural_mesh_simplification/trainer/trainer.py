@@ -131,6 +131,9 @@ class Trainer:
                 # Save the checkpoint
                 self._save_checkpoint(epoch, val_loss)
 
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+
                 # Early stop as required
                 if self._early_stopping(val_loss):
                     logging.info("Early stopping triggered.")
