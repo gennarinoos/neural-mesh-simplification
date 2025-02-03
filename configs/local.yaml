@@ -1,8 +1,8 @@
 # Model parameters
 model:
   input_dim: 3
-  hidden_dim: 64 # feature dimension for point sampler and face classifier (as per paper)
-  edge_hidden_dim: 128 # feature dimension for edge predictor (as per paper)
+  hidden_dim: 128 # feature dimension for point sampler and face classifier (as per paper)
+  edge_hidden_dim: 64 # feature dimension for edge predictor (as per paper)
   num_layers: 3 # number of convolutional layers (as per paper)
   k: 15 # number of neighbors for graph construction (as per paper)
   edge_k: 15 # number of neighbors for edge features (as per paper)
