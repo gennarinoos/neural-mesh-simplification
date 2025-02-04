@@ -6,7 +6,12 @@ class ProbabilisticChamferDistanceLoss(nn.Module):
     def __init__(self):
         super(ProbabilisticChamferDistanceLoss, self).__init__()
 
-    def forward(self, P, Ps, probabilities):
+    def forward(
+        self,
+        P: torch.Tensor,
+        Ps: torch.Tensor,
+        probabilities: torch.Tensor
+    ) -> torch.Tensor:
         """
         Compute the Probabilistic Chamfer Distance loss.
 
@@ -42,7 +47,12 @@ class ProbabilisticChamferDistanceLoss(nn.Module):
 
         return loss
 
-    def compute_minimum_distances(self, source, target, return_indices=False):
+    def compute_minimum_distances(
+        self,
+        source: torch.Tensor,
+        target: torch.Tensor,
+        return_indices: bool = False
+    ):
         """
         Compute the minimum distances from each point in source to target.
 
@@ -57,8 +67,6 @@ class ProbabilisticChamferDistanceLoss(nn.Module):
         """
         # Compute pairwise distances
         distances = torch.cdist(source, target)
-
-        # Find minimum distances
         min_distances, min_indices = distances.min(dim=1)
 
         if return_indices:

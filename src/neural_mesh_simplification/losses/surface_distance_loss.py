@@ -4,9 +4,8 @@ from torch_cluster import knn
 
 
 class ProbabilisticSurfaceDistanceLoss(nn.Module):
-    def __init__(self, k: int = 3, num_samples: int = 100, epsilon: float = 1e-8):
+    def __init__(self, num_samples: int = 100, epsilon: float = 1e-8):
         super().__init__()
-        self.k = k
         self.num_samples = num_samples
         self.epsilon = epsilon
 

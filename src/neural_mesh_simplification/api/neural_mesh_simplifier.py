@@ -1,21 +1,21 @@
 import torch
 import trimesh
-from torch_geometric.data import Data
+from dgl import DGLGraph
 
-from ..data.dataset import preprocess_mesh, mesh_to_tensor
+from ..data.dataset import preprocess_mesh, mesh_to_dgl
 from ..models import NeuralMeshSimplification
 
 
 class NeuralMeshSimplifier:
     def __init__(
-            self,
-            input_dim,
-            hidden_dim,
-            edge_hidden_dim,  # Separate hidden dim for edge predictor
-            num_layers,
-            k,
-            edge_k,
-            target_ratio
+        self,
+        input_dim,
+        hidden_dim,
+        edge_hidden_dim,  # Separate hidden dim for edge predictor
+        num_layers,
+        k,
+        edge_k,
+        target_ratio
     ):
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
@@ -59,7 +59,7 @@ class NeuralMeshSimplifier:
         preprocessed_mesh: trimesh.Trimesh = preprocess_mesh(mesh)
 
         # Convert to a tensor
-        tensor: Data = mesh_to_tensor(preprocessed_mesh)
+        tensor: DGLGraph = mesh_to_dgl(preprocessed_mesh)
         model_output = self.model(tensor)
 
         vertices = model_output["sampled_vertices"].detach().numpy()

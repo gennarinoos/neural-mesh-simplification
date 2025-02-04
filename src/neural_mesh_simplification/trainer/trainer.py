@@ -4,10 +4,10 @@ from multiprocessing import Event, Process
 from typing import Dict, Any
 
 import torch
+from dgl.dataloading import GraphDataLoader
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import random_split
-from torch_geometric.loader import DataLoader
 
 from .resource_monitor import monitor_resources
 from ..data import MeshSimplificationDataset
@@ -93,20 +93,18 @@ class Trainer:
         num_workers = self.config["training"].get("num_workers", os.cpu_count())
         logger.info(f"Using {num_workers} workers for data loading")
 
-        train_loader = DataLoader(
+        train_loader = GraphDataLoader(
             train_dataset,
             batch_size=self.config["training"]["batch_size"],
             shuffle=True,
             num_workers=num_workers,
-            follow_batch=["x", "pos"]
         )
 
-        val_loader = DataLoader(
+        val_loader = GraphDataLoader(
             val_dataset,
             batch_size=self.config["training"]["batch_size"],
             shuffle=False,
             num_workers=num_workers,
-            follow_batch=["x", "pos"]
         )
         logger.info("Data loaders prepared successfully")
 
@@ -141,6 +139,7 @@ class Trainer:
                 if self._early_stopping(val_loss):
                     logging.info("Early stopping triggered.")
                     break
+
         except Exception as e:
             logger.error(f"{str(e)}")
         finally:
@@ -157,8 +156,8 @@ class Trainer:
         for batch_idx, batch in enumerate(self.train_loader):
             logger.debug(f"Processing batch {batch_idx + 1}")
             self.optimizer.zero_grad()
-            output = self.model(batch)
-            loss = self.criterion(batch, output)
+            output, face_probs = self.model(batch)
+            loss = self.criterion(batch, output, face_probs)
 
             del batch
             del output
@@ -174,8 +173,12 @@ class Trainer:
         val_loss = 0.0
         with torch.no_grad():
             for batch in self.val_loader:
-                output = self.model(batch)
-                loss = self.criterion(batch, output)
+                output, face_probs = self.model(batch)
+                loss = self.criterion(batch, output, face_probs)
+
+                del batch
+                del output
+
                 val_loss += loss.item()
 
         return val_loss / len(self.val_loader)
@@ -223,7 +226,7 @@ class Trainer:
         log_message += ", ".join([f"{key}: {value:.4f}" for key, value in metrics.items()])
         logging.info(log_message)
 
-    def evaluate(self, data_loader: DataLoader) -> Dict[str, float]:
+    def evaluate(self, data_loader: GraphDataLoader) -> Dict[str, float]:
         self.model.eval()
         metrics = {
             "chamfer_distance": 0.0,
@@ -233,7 +236,7 @@ class Trainer:
         }
         with torch.no_grad():
             for batch in data_loader:
-                output = self.model(batch)
+                output, face_probs = self.model(batch)
 
                 # TODO: Define methods that can operate on a batch instead of a trimesh object
 

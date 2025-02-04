@@ -1,13 +1,11 @@
+import torch
 import torch.nn as nn
-from torch import device
 
-from . import (
-    ProbabilisticChamferDistanceLoss,
-    ProbabilisticSurfaceDistanceLoss,
-    TriangleCollisionLoss,
-    EdgeCrossingLoss,
-    OverlappingTrianglesLoss,
-)
+from .chamfer_distance_loss import ProbabilisticChamferDistanceLoss
+from .edge_crossing_loss import EdgeCrossingLoss
+from .overlapping_triangles_loss import OverlappingTrianglesLoss
+from .surface_distance_loss import ProbabilisticSurfaceDistanceLoss
+from .triangle_collision_loss import TriangleCollisionLoss
 
 
 class CombinedMeshSimplificationLoss(nn.Module):
@@ -16,7 +14,7 @@ class CombinedMeshSimplificationLoss(nn.Module):
         lambda_c: float = 1.0,
         lambda_e: float = 1.0,
         lambda_o: float = 1.0,
-        device=device("cpu")
+        device=torch.device("cpu")
     ):
         super().__init__()
         self.device = device
