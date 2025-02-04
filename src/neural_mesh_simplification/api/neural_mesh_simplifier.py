@@ -1,8 +1,7 @@
 import torch
 import trimesh
-from dgl import DGLGraph
 
-from ..data.dataset import preprocess_mesh, mesh_to_dgl
+from ..data.dataset import preprocess_mesh, mesh_to_dgl, dgl_to_trimesh
 from ..models import NeuralMeshSimplification
 
 
@@ -59,11 +58,7 @@ class NeuralMeshSimplifier:
         preprocessed_mesh: trimesh.Trimesh = preprocess_mesh(mesh)
 
         # Convert to a tensor
-        tensor: DGLGraph = mesh_to_dgl(preprocessed_mesh)
-        model_output = self.model(tensor)
+        graph, _ = mesh_to_dgl(preprocessed_mesh)
+        s_graph, s_faces, _ = self.model(graph)
 
-        vertices = model_output["sampled_vertices"].detach().numpy()
-        faces = model_output["simplified_faces"].numpy()
-        edges = model_output["edge_index"].t().numpy()  # Transpose to get (n, 2) shape
-
-        return trimesh.Trimesh(vertices=vertices, faces=faces, edges=edges)
+        return dgl_to_trimesh(s_graph, s_faces)

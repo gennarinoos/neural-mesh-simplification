@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Optional
 
@@ -7,6 +8,8 @@ import torch
 import trimesh
 from dgl.data import DGLDataset
 from trimesh import Geometry, Trimesh
+
+logger = logging.getLogger(__name__)
 
 
 class MeshSimplificationDataset(DGLDataset):
@@ -27,7 +30,7 @@ class MeshSimplificationDataset(DGLDataset):
     def __len__(self):
         return len(self.file_list)
 
-    def __getitem__(self, idx) -> dgl.DGLGraph:
+    def __getitem__(self, idx) -> tuple[dgl.DGLGraph, torch.Tensor]:
         file_path = os.path.join(self.data_dir, self.file_list[idx])
         mesh = load_mesh(file_path)
 
@@ -37,8 +40,7 @@ class MeshSimplificationDataset(DGLDataset):
         if self.transform:
             mesh = self.transform(mesh)
 
-        graph = mesh_to_dgl(mesh)
-        return graph
+        return mesh_to_dgl(mesh)
 
 
 def load_mesh(file_path: str) -> Geometry | list[Geometry] | None:
@@ -78,9 +80,9 @@ def augment_mesh(mesh: trimesh.Trimesh) -> Trimesh | None:
     return mesh
 
 
-def mesh_to_dgl(mesh) -> dgl.DGLGraph | None:
+def mesh_to_dgl(mesh) -> tuple[dgl.DGLGraph, torch.Tensor]:
     if mesh is None:
-        return None
+        raise ValueError("Mesh is undefined")
 
     # Convert vertices to tensor
     vertices = torch.tensor(mesh.vertices, dtype=torch.float32)
@@ -88,11 +90,14 @@ def mesh_to_dgl(mesh) -> dgl.DGLGraph | None:
 
     # Convert unique edges
     edges_np = np.array(list(mesh.edges_unique))
-    edges = torch.tensor(edges_np, dtype=torch.int64).t()
+    edges = torch.tensor(edges_np, dtype=torch.long).t()
 
     # Create DGL graph
     g = dgl.graph((edges[0], edges[1]), num_nodes=num_nodes)
     g = dgl.add_self_loop(g)
+
+    # Verify node count matches
+    assert g.number_of_nodes() == vertices.shape[0], "Mismatch between nodes and features"
 
     # Add node features
     g.ndata['x'] = vertices
@@ -100,46 +105,34 @@ def mesh_to_dgl(mesh) -> dgl.DGLGraph | None:
 
     # Store face information as node data
     if hasattr(mesh, 'faces'):
-        faces = torch.tensor(mesh.faces, dtype=torch.int64)
-        store_faces(g, faces)
+        faces_tensor = torch.tensor(mesh.faces, dtype=torch.long)
+    else:
+        faces_tensor = torch.empty((0, 3), dtype=torch.long)
 
-    # Verify node count matches
-    assert g.number_of_nodes() == vertices.shape[0], "Mismatch between nodes and features"
-
-    return g
+    return g, faces_tensor
 
 
-def store_faces(g: dgl.DGLGraph, faces: torch.Tensor):
-    # Create a mapping from node indices to face indices
-    node_to_face = torch.full((g.num_nodes(),), -1, dtype=torch.int64)  # Default: -1 (no face)
-    for face_id, (v1, v2, v3) in enumerate(faces):
-        node_to_face[v1] = face_id
-        node_to_face[v2] = face_id
-        node_to_face[v3] = face_id
+def dgl_to_trimesh(g: dgl.DGLGraph, faces: torch.Tensor | None) -> Trimesh:
+    # Convert to a tensor
+    vertices = g.ndata['pos'].numpy()
+    vertex_normals = g.ndata.get('normal', None)
+    if vertex_normals is not None:
+        vertex_normals = vertex_normals.numpy()
 
-    g.ndata['face_idx'] = node_to_face  # Store face indices per node
+    return trimesh.Trimesh(
+        vertices=vertices,
+        faces=faces,
+        vertex_normals=vertex_normals,
+        process=True,
+        validate=True
+    )
 
 
-def reconstruct_faces(g: dgl.DGLGraph) -> torch.Tensor:
-    if 'face_idx' not in g.ndata:
-        raise IOError("No face data set on graph under key 'face_idx'")
-
-    face_idx = g.ndata['face_idx']  # Retrieve stored face indices
-    valid_mask = face_idx >= 0  # Ignore nodes with -1 (no face)
-
-    # Filter only valid nodes
-    valid_node_ids = torch.arange(g.num_nodes())[valid_mask]
-    valid_face_ids = face_idx[valid_mask]  # Get valid face indices
-
-    # Dictionary: {face_id: [list of node indices]}
-    face_dict = {}
-    for node_id, f_id in zip(valid_node_ids.tolist(), valid_face_ids.tolist()):
-        if f_id not in face_dict:
-            face_dict[f_id] = []
-        face_dict[f_id].append(node_id)
-
-    # Convert to tensor (only faces with exactly 3 nodes)
-    faces = [nodes for nodes in face_dict.values() if len(nodes) == 3]
-    faces_tensor = torch.tensor(faces, dtype=torch.int64) if faces else None
-
-    return faces_tensor
+def collate(batch: list[tuple]) -> tuple[dgl.DGLGraph, torch.Tensor]:
+    graphs, faces = zip(*batch)
+    max_faces = max(f.shape[0] for f in faces)
+    padded_faces = torch.stack([
+        torch.nn.functional.pad(f, (0, 0, 0, max_faces - f.shape[0]), value=-1)
+        for f in faces
+    ])
+    return graphs, padded_faces

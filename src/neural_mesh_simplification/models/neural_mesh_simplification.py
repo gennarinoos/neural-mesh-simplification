@@ -6,7 +6,6 @@ from dgl import DGLGraph
 from .edge_predictor import EdgePredictorDGL
 from .face_classifier import FaceClassifierDGL
 from .point_sampler import PointSamplerDGL
-from ..data.dataset import store_faces
 
 
 class NeuralMeshSimplification(nn.Module):
@@ -32,17 +31,18 @@ class NeuralMeshSimplification(nn.Module):
 
     def forward(
         self,
-        g: dgl.DGLGraph
-    ) -> tuple[dgl.DGLGraph, torch.Tensor]:
+        g: dgl.DGLGraph,
+    ) -> tuple[dgl.DGLGraph, torch.Tensor, torch.Tensor]:
         """
         Forward pass for NeuralMeshSimplification.
 
         Args:
-            g (DGLGraph): Input graph containing node features `x` and optionally positions `pos`.
+            g (dlg.DGLGraph): Input graph containing node features `x` and optionally positions `pos`.
 
         Returns:
-            DGLGraph: The graph containing the simplified mesh
-            Tensor: The face probabilities from the Face Classifier
+            dlg.DGLGraph: The graph containing the simplified mesh
+            torch.Tensor: The simplified faces
+            torch.Tensor: The face probabilities from the Face Classifier
         """
         x = g.ndata['x']
         pos = g.ndata['pos'] if 'pos' in g.ndata else x
@@ -108,9 +108,8 @@ class NeuralMeshSimplification(nn.Module):
         simplified_g.ndata['pos'] = sampled_pos
         simplified_g.ndata['x'] = sampled_x
         simplified_g.ndata['sample_prob'] = sampled_probs
-        store_faces(simplified_g, simplified_faces)
 
-        return simplified_g, face_probs
+        return simplified_g, simplified_faces, face_probs
 
     def sample_points(self, g: DGLGraph) -> tuple[torch.Tensor, torch.Tensor]:
         """
@@ -135,162 +134,63 @@ class NeuralMeshSimplification(nn.Module):
 
         return sampled_indices, sampled_probs[sampled_indices]
 
-    # TODO: Verify this optimized version
-
     def generate_candidate_triangles(
         self,
-        sampled_g: DGLGraph,
+        g: DGLGraph,
         edge_probs: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        print(f"sampled_g shape: {sampled_g.num_nodes()}, {sampled_g.num_edges()}")
-        print(f"edge_probs shape: {edge_probs.shape}")
+        """
+        Generate candidate triangles from edges.
 
-        # Get the adjacency matrix
-        adj = sampled_g.adj().to_dense()
-        print(f"adj shape: {adj.shape}")
+        Args:
+            g (DGLGraph): Input graph with predicted edges.
+            edge_probs (torch.Tensor): Probabilities of edges in the graph.
 
-        # Get k-nearest neighbors for each vertex
-        k = min(self.k, adj.shape[0] - 1)
-        _, knn_indices = torch.topk(adj, k=k, dim=1)
+        Returns:
+            tuple: Candidate triangles and their probabilities.
+        """
+        g = g.to(self.device)
+        num_nodes = g.num_nodes()
+        k = min(self.k, num_nodes - 1)
 
-        print(f"knn_indices shape: {knn_indices.shape}")
+        # Create a feature matrix from edge probabilities
+        src, dst = g.edges()
+        features = torch.zeros((num_nodes, num_nodes), device=self.device)
+        features[src, dst] = edge_probs
+        features[dst, src] = edge_probs  # Assuming undirected graph
 
-        # Generate all possible triangles
-        triangles, triangle_probs = self.generate_triangles_vectorized(knn_indices, edge_probs)
+        del src
+        del dst
 
-        print(f"triangles shape: {triangles.shape}")
-        print(f"triangle_probs shape: {triangle_probs.shape}")
+        # Find k-nearest neighbors using dgl.knn_graph
+        knn_g = dgl.knn_graph(features, k)
+        knn_indices = knn_g.edges()[1].reshape(-1, k)
 
-        return triangles, triangle_probs
+        del features
+        del knn_g
 
-    def generate_triangles_vectorized(self, knn_indices, edge_probs):
-        num_vertices = knn_indices.shape[0]
-        device = knn_indices.device
+        # Generate candidate triangles
+        triangles = []
+        triangle_probs = []
 
-        # Generate all combinations of neighbor pairs
-        neighbor_combinations = torch.combinations(torch.arange(self.k, device=device), r=2)
+        for i in range(num_nodes):
+            neighbors = knn_indices[i]
+            for j in range(k):
+                for l in range(j + 1, k):
+                    n1, n2 = neighbors[j].item(), neighbors[l].item()
+                    if g.has_edges_between(n1, n2):
+                        triangles.append(torch.tensor([i, n1, n2], device=self.device))
+                        e1 = g.edge_ids(i, n1)
+                        e2 = g.edge_ids(i, n2)
+                        e3 = g.edge_ids(n1, n2)
+                        prob = (edge_probs[e1] * edge_probs[e2] * edge_probs[e3]) ** (1 / 3)
+                        triangle_probs.append(prob)
 
-        # Create triangles: (center_vertex, neighbor1, neighbor2)
-        center_vertices = (torch.arange(num_vertices, device=device)
-                           .unsqueeze(1)
-                           .unsqueeze(2)
-                           .expand(-1, neighbor_combinations.shape[0], 1))
-        neighbors = knn_indices[:, neighbor_combinations]
-        triangles = torch.cat([center_vertices, neighbors], dim=2).reshape(-1, 3)
-
-        # TODO: Calculate triangles probabilities
-
-        # # Remove degenerate triangles
-        # mask = (
-        #     (triangles[:, 0] != triangles[:, 1])
-        #     & (triangles[:, 0] != triangles[:, 2])
-        #     & (triangles[:, 1] != triangles[:, 2])
-        # )
-        # triangles = triangles[mask]
-
-        # Calculate triangle probabilities
-        # edge_probs_expanded = edge_probs.unsqueeze(0).expand(num_vertices, -1, -1)
-        # probs = torch.stack([
-        #     edge_probs_expanded[triangles[:, 0], triangles[:, 1], triangles[:, 2]],
-        #     edge_probs_expanded[triangles[:, 1], triangles[:, 0], triangles[:, 2]],
-        #     edge_probs_expanded[triangles[:, 2], triangles[:, 0], triangles[:, 1]]
-        # ], dim=1)
-        # triangle_probs = probs.prod(dim=1).pow(1 / 3)
-        triangle_probs = torch.zeros(triangles.shape[0])
+        if triangles:
+            triangles = torch.stack(triangles)
+            triangle_probs = torch.stack(triangle_probs)
+        else:
+            triangles = torch.empty((0, 3), dtype=torch.long, device=self.device)
+            triangle_probs = torch.empty(0, device=self.device)
 
         return triangles, triangle_probs
-
-    # def generate_candidate_triangles(self, sampled_g, edge_probs):
-    #     # Get the adjacency matrix
-    #     adj = sampled_g.adj().to_dense()
-    #
-    #     # Get k-nearest neighbors for each vertex
-    #     k = min(self.k, adj.shape[0] - 1)
-    #     _, knn_indices = torch.topk(adj, k=k, dim=1)
-    #
-    #     # Initialize lists to store triangle indices and probabilities
-    #     triangle_indices = []
-    #     triangle_probs = []
-    #
-    #     # Iterate over all vertices
-    #     for i in range(adj.shape[0]):
-    #         neighbors = knn_indices[i]
-    #         # Generate all possible triangles with the current vertex and its neighbors
-    #         for j in range(k):
-    #             for l in range(j + 1, k):
-    #                 n1, n2 = neighbors[j], neighbors[l]
-    #                 # Ensure we don't create degenerate triangles
-    #                 if i != n1 and i != n2 and n1 != n2:
-    #                     triangle = torch.tensor([i, n1, n2], device=self.device)
-    #                     triangle_indices.append(triangle)
-    #
-    #                     # Calculate triangle probability based on edge probabilities
-    #                     prob = (edge_probs[i, n1] * edge_probs[i, n2] * edge_probs[n1, n2]) ** (1 / 3)
-    #                     triangle_probs.append(prob)
-    #
-    #     # Convert lists to tensors
-    #     triangle_indices = torch.stack(triangle_indices)
-    #     triangle_probs = torch.tensor(triangle_probs, device=self.device)
-    #
-    #     return triangle_indices, triangle_probs
-
-    # def generate_candidate_triangles(
-    #     self,
-    #     g: DGLGraph,
-    #     edge_probs: torch.Tensor
-    # ) -> tuple[torch.Tensor, torch.Tensor]:
-    #     """
-    #     Generate candidate triangles from edges.
-    #
-    #     Args:
-    #         g (DGLGraph): Input graph with predicted edges.
-    #         edge_probs (torch.Tensor): Probabilities of edges in the graph.
-    #
-    #     Returns:
-    #         tuple: Candidate triangles and their probabilities.
-    #     """
-    #     # Ensure the graph is on the correct device
-    #     g = g.to(self.device)
-    #
-    #     # Get the number of nodes
-    #     num_nodes = g.num_nodes()
-    #
-    #     # Create an adjacency matrix from the graph
-    #     adj_matrix = g.adj().to_dense()
-    #
-    #     # Set edge probabilities
-    #     adj_matrix[g.edges()] = edge_probs
-    #
-    #     # Adjust k based on the number of nodes
-    #     k = min(self.k, num_nodes - 1)
-    #
-    #     # Find k-nearest neighbors for each node
-    #     _, knn_indices = torch.topk(adj_matrix, k=k, dim=1)
-    #
-    #     # Generate candidate triangles
-    #     triangles = []
-    #     triangle_probs = []
-    #
-    #     for i in range(num_nodes):
-    #         neighbors = knn_indices[i]
-    #         for j in range(k):
-    #             for l in range(j + 1, k):
-    #                 n1, n2 = neighbors[j], neighbors[l]
-    #                 if adj_matrix[n1, n2] > 0:  # Check if the third edge exists
-    #                     triangle = torch.tensor([i, n1, n2], device=self.device)
-    #                     triangles.append(triangle)
-    #
-    #                     # Calculate triangle probability
-    #                     prob = (
-    #                                adj_matrix[i, n1] * adj_matrix[i, n2] * adj_matrix[n1, n2]
-    #                            ) ** (1 / 3)
-    #                     triangle_probs.append(prob)
-    #
-    #     if triangles:
-    #         triangles = torch.stack(triangles)
-    #         triangle_probs = torch.tensor(triangle_probs, device=self.device)
-    #     else:
-    #         triangles = torch.empty((0, 3), dtype=torch.long, device=self.device)
-    #         triangle_probs = torch.empty(0, device=self.device)
-    #
-    #     return triangles, triangle_probs

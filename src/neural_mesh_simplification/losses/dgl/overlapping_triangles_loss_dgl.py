@@ -2,8 +2,6 @@ import dgl
 import torch
 import torch.nn as nn
 
-from ...data.dataset import reconstruct_faces
-
 
 class OverlappingTrianglesLoss(nn.Module):
     def __init__(self, num_samples: int = 10, k: int = 5):
@@ -18,9 +16,8 @@ class OverlappingTrianglesLoss(nn.Module):
         self.num_samples = num_samples  # Number of points to sample from each triangle
         self.k = k  # Number of nearest triangles to consider
 
-    def forward(self, g: dgl.DGLGraph):
+    def forward(self, g: dgl.DGLGraph, faces: torch.Tensor):
         vertices = g.ndata['pos']
-        faces = reconstruct_faces(g)
 
         # If no faces, return zero loss
         if faces.shape[0] == 0:

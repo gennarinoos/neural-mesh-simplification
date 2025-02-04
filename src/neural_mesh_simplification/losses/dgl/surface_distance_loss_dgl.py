@@ -2,20 +2,22 @@ import dgl
 import torch
 import torch.nn as nn
 
-from neural_mesh_simplification.data.dataset import reconstruct_faces
-
 
 class ProbabilisticSurfaceDistanceLoss(nn.Module):
     def __init__(self, num_samples: int = 100):
         super(ProbabilisticSurfaceDistanceLoss, self).__init__()
         self.num_samples = num_samples
 
-    def forward(self, original_g: dgl.DGLGraph, simplified_g: dgl.DGLGraph):
+    def forward(
+        self,
+        original_g: dgl.DGLGraph,
+        original_faces: torch.Tensor,
+        simplified_g: dgl.DGLGraph,
+        simplified_faces: torch.Tensor,
+    ):
         original_vertices = original_g.ndata['pos']
         simplified_vertices = simplified_g.ndata['pos']
         probabilities = simplified_g.ndata['sample_prob']
-        original_faces = reconstruct_faces(original_g)
-        simplified_faces = reconstruct_faces(simplified_g)
 
         # Sample points on original mesh
         original_samples = self.sample_points_on_mesh(original_vertices, original_faces)
@@ -36,8 +38,12 @@ class ProbabilisticSurfaceDistanceLoss(nn.Module):
 
         return loss
 
-    def sample_points_on_mesh(self, vertices, faces):
+    def sample_points_on_mesh(self, vertices, faces) -> torch.Tensor:
         num_faces = faces.shape[0]
+
+        if num_faces == 0:
+            return vertices.unbind(1)
+
         face_areas = self.compute_face_areas(vertices, faces)
         face_probs = face_areas / face_areas.sum()
 

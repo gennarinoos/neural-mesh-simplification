@@ -2,18 +2,14 @@ import dgl
 import torch
 import torch.nn as nn
 
-from ...data.dataset import reconstruct_faces
-
 
 class EdgeCrossingLoss(nn.Module):
     def __init__(self, k: int = 20):
         super().__init__()
         self.k = k  # Number of nearest triangles to consider
 
-    def forward(self, g: dgl.DGLGraph, face_probs: torch.Tensor) -> torch.Tensor:
+    def forward(self, g: dgl.DGLGraph, faces: torch.Tensor, face_probs: torch.Tensor) -> torch.Tensor:
         vertices = g.ndata['pos']
-
-        faces = reconstruct_faces(g)
 
         if faces.shape[0] == 0:
             return torch.tensor(0.0, device=vertices.device)
@@ -22,26 +18,24 @@ class EdgeCrossingLoss(nn.Module):
         face_probs = face_probs[:faces.shape[0]]
 
         # Find k-nearest triangles for each triangle
-        nearest_triangles = self.find_nearest_triangles(g)
+        nearest_triangles = self.find_nearest_triangles(g, faces)
 
         # Detect edge crossings between nearby triangles
-        crossings = self.detect_edge_crossings(g, nearest_triangles)
+        crossings = self.detect_edge_crossings(g, faces, nearest_triangles)
 
         # Calculate loss
         loss = self.calculate_loss(crossings, face_probs)
 
         return loss
 
-    def find_nearest_triangles(self, g: dgl.DGLGraph) -> torch.Tensor:
-        faces = reconstruct_faces(g)
+    def find_nearest_triangles(self, g: dgl.DGLGraph, faces: torch.Tensor) -> torch.Tensor:
         centroids = g.ndata['pos'][faces].mean(dim=1)
         k = min(self.k, centroids.shape[0])
         g_knn = dgl.knn_graph(centroids, k)
         return g_knn.edges()[1].reshape(-1, k)
 
-    def detect_edge_crossings(self, g: dgl.DGLGraph, nearest_triangles: torch.Tensor) -> torch.Tensor:
+    def detect_edge_crossings(self, g: dgl.DGLGraph, faces: torch.Tensor, nearest_triangles: torch.Tensor) -> torch.Tensor:
         vertices = g.ndata['pos']
-        faces = reconstruct_faces(g)
 
         def edge_vectors(triangles):
             return vertices[triangles[:, [1, 2, 0]]] - vertices[triangles]

@@ -11,6 +11,7 @@ from torch.utils.data import random_split
 
 from .resource_monitor import monitor_resources
 from ..data import MeshSimplificationDataset
+from ..data.dataset import collate
 from ..losses import CombinedMeshSimplificationLoss
 from ..metrics import chamfer_distance, normal_consistency, edge_preservation, hausdorff_distance
 from ..models import NeuralMeshSimplification
@@ -98,6 +99,7 @@ class Trainer:
             batch_size=self.config["training"]["batch_size"],
             shuffle=True,
             num_workers=num_workers,
+            collate_fn=collate
         )
 
         val_loader = GraphDataLoader(
@@ -105,6 +107,7 @@ class Trainer:
             batch_size=self.config["training"]["batch_size"],
             shuffle=False,
             num_workers=num_workers,
+            collate_fn=collate
         )
         logger.info("Data loaders prepared successfully")
 
@@ -115,6 +118,8 @@ class Trainer:
             main_pid = os.getpid()
             self.monitor_process = Process(target=monitor_resources, args=(self.stop_event, main_pid))
             self.monitor_process.start()
+
+        logging.debug("Training started")
 
         try:
             for epoch in range(self.config["training"]["num_epochs"]):
@@ -155,16 +160,21 @@ class Trainer:
 
         for batch_idx, batch in enumerate(self.train_loader):
             logger.debug(f"Processing batch {batch_idx + 1}")
-            self.optimizer.zero_grad()
-            output, face_probs = self.model(batch)
-            loss = self.criterion(batch, output, face_probs)
+            for orig_graph, orig_faces in zip(*batch):
+                self.optimizer.zero_grad()
+                s_graph, s_faces, face_probs = self.model(orig_graph)
 
-            del batch
-            del output
+                loss = self.criterion(orig_graph, orig_faces, s_graph, s_faces, face_probs)
 
-            loss.backward()
-            self.optimizer.step()
-            running_loss += loss.item()
+                del orig_graph
+                del orig_faces
+                del s_graph
+                del s_faces
+                del face_probs
+
+                loss.backward()
+                self.optimizer.step()
+                running_loss += loss.item()
 
         return running_loss / len(self.train_loader)
 
@@ -172,14 +182,18 @@ class Trainer:
         self.model.eval()
         val_loss = 0.0
         with torch.no_grad():
-            for batch in self.val_loader:
-                output, face_probs = self.model(batch)
-                loss = self.criterion(batch, output, face_probs)
+            for batch_idx, batch in enumerate(self.train_loader):
+                for orig_graph, orig_faces in zip(*batch):
+                    s_graph, s_faces, face_probs = self.model(orig_graph)
+                    loss = self.criterion(orig_graph, orig_faces, s_graph, s_faces, face_probs)
 
-                del batch
-                del output
+                    del orig_graph
+                    del orig_faces
+                    del s_graph
+                    del s_faces
+                    del face_probs
 
-                val_loss += loss.item()
+                    val_loss += loss.item()
 
         return val_loss / len(self.val_loader)
 

@@ -2,8 +2,6 @@ import dgl
 import torch
 import torch.nn as nn
 
-from ...data.dataset import reconstruct_faces
-
 
 class TriangleCollisionLoss(nn.Module):
     def __init__(
@@ -15,9 +13,13 @@ class TriangleCollisionLoss(nn.Module):
         self.collision_threshold = collision_threshold
         self.normal_threshold = normal_threshold
 
-    def forward(self, g: dgl.DGLGraph, face_probabilities: torch.Tensor):
+    def forward(
+        self,
+        g: dgl.DGLGraph,
+        faces: torch.Tensor,
+        face_probabilities: torch.Tensor
+    ) -> torch.Tensor:
         vertices = g.ndata['pos']
-        faces = reconstruct_faces(g)
 
         num_faces = faces.shape[0]
 
