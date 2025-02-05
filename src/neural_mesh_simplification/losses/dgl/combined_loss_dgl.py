@@ -37,20 +37,20 @@ class CombinedMeshSimplificationLoss(nn.Module):
         face_probs: torch.Tensor
     ):
         chamfer_loss = self.prob_chamfer_loss(original_g, simplified_g)
-        surface_loss = self.prob_surface_loss(original_g, original_faces, simplified_g, simplified_faces)
 
         del original_g
+        # surface_loss = self.prob_surface_loss(original_g, original_faces, simplified_g, simplified_faces)
 
         collision_loss = self.collision_loss(simplified_g, simplified_faces, face_probs)
         edge_crossing_loss = self.edge_crossing_loss(simplified_g, simplified_faces, face_probs)
-        overlapping_triangles_loss = self.overlapping_triangles_loss(simplified_g, simplified_faces)
+        # overlapping_triangles_loss = self.overlapping_triangles_loss(simplified_g, simplified_faces)
 
         total_loss = (
             chamfer_loss
-            + surface_loss
+            # + surface_loss
             + self.lambda_c * collision_loss
             + self.lambda_e * edge_crossing_loss
-            + self.lambda_o * overlapping_triangles_loss
+            # + self.lambda_o * overlapping_triangles_loss
         )
 
         return total_loss
