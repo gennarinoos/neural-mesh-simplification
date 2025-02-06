@@ -1,1 +1,1 @@
-from neural_mesh_simplification.losses.combined_loss_dgl import CombinedMeshSimplificationLoss
+from neural_mesh_simplification.losses.combined_loss import CombinedMeshSimplificationLoss

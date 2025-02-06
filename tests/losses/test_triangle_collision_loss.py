@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from neural_mesh_simplification.losses.triangle_collision_loss_dgl import TriangleCollisionLoss
+from neural_mesh_simplification.losses.triangle_collision_loss import TriangleCollisionLoss
 
 
 @pytest.fixture
