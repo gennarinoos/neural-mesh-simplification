@@ -6,7 +6,7 @@ from neural_mesh_simplification.losses.surface_distance_loss import Probabilisti
 
 @pytest.fixture
 def loss_fn():
-    return ProbabilisticSurfaceDistanceLoss(k=3, num_samples=100)
+    return ProbabilisticSurfaceDistanceLoss(num_samples=100)
 
 
 @pytest.fixture
