@@ -29,7 +29,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cpu
           pip install dgl -f https://data.dgl.ai/wheels/torch-2.3/cpu/repo.html
+          pip install torchdata==0.9.0
           pip install -r requirements.txt
+          pip freeze
+          ls -la /opt/hostedtoolcache/Python/3.12.8/x64/lib/python3.12/site-packages/dgl
       - name: Install this package
         run: |
           pip install -e .
