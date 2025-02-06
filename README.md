@@ -43,8 +43,7 @@ you'll have to use the correct binaries for PyTorch and DGL. You can install the
 
 ```bash
 pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cpu
-pip install torchdata==0.9.0 --index-url https://download.pytorch.org/whl/cpu
-pip install dgl -f https://data.dgl.ai/wheels/repo.html
+pip install dgl -f https://data.dgl.ai/wheels/torch-2.3/cpu/repo.html
 ```
 
 Replace “cpu” with “cu121” or the appropriate CUDA version for your system. If you don't know what is your cuda version,

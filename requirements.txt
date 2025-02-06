@@ -40,6 +40,7 @@ setuptools==72.1.0
 six==1.16.0
 sympy==1.13.1
 threadpoolctl==3.5.0
+torchdata==0.9.0
 tqdm==4.66.5
 trimesh==4.4.4
 typing_extensions==4.12.2
