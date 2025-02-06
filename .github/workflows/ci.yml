@@ -32,7 +32,7 @@ jobs:
           pip install torchdata==0.9.0
           pip install -r requirements.txt
           pip freeze
-          ls -la /opt/hostedtoolcache/Python/3.12.8/x64/lib/python3.12/site-packages/dgl
+          ls -la /opt/hostedtoolcache/Python/3.12.8/x64/lib/python3.12/site-packages/dgl/graphbolt/
       - name: Install this package
         run: |
           pip install -e .
