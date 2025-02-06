@@ -16,6 +16,7 @@ training:
   num_epochs: 20 # total training epochs
   early_stopping_patience: 15 # epochs before early stopping
   checkpoint_dir: data/checkpoints # model save directory
+  num_workers: 0
 
 # Data parameters
 data:

@@ -11,11 +11,11 @@ from .triangle_collision_loss import TriangleCollisionLoss
 
 class CombinedMeshSimplificationLoss(nn.Module):
     def __init__(
-        self,
-        lambda_c: float = 1.0,
-        lambda_e: float = 1.0,
-        lambda_o: float = 1.0,
-        device=torch.device("cpu")
+            self,
+            lambda_c: float = 1.0,
+            lambda_e: float = 1.0,
+            lambda_o: float = 1.0,
+            device=torch.device("cpu")
     ):
         super().__init__()
         self.device = device
@@ -29,12 +29,12 @@ class CombinedMeshSimplificationLoss(nn.Module):
         self.lambda_o = lambda_o
 
     def forward(
-        self,
-        original_graph: dgl.DGLGraph,
-        original_faces: torch.Tensor,
-        sampled_graph: dgl.DGLGraph,
-        sampled_faces: torch.Tensor,
-        face_probs: torch.Tensor
+            self,
+            original_graph: dgl.DGLGraph,
+            original_faces: torch.Tensor,
+            sampled_graph: dgl.DGLGraph,
+            sampled_faces: torch.Tensor,
+            face_probs: torch.Tensor
     ):
         orig_vertices = original_graph.ndata['x'].to(self.device)
         sampled_vertices = sampled_graph.ndata['x'].to(self.device)
@@ -42,18 +42,45 @@ class CombinedMeshSimplificationLoss(nn.Module):
 
         del original_graph
 
-        chamfer_loss = self.prob_chamfer_loss(orig_vertices, sampled_vertices, sampled_probs)
-        surface_loss = self.prob_surface_loss(orig_vertices, original_faces, sampled_vertices, sampled_faces, face_probs)
-        collision_loss = self.collision_loss(sampled_vertices, sampled_faces, face_probs)
-        edge_crossing_loss = self.edge_crossing_loss(sampled_vertices, sampled_faces, face_probs)
+        chamfer_loss = self.prob_chamfer_loss(
+            orig_vertices,
+            sampled_vertices,
+            sampled_probs
+        )
+
+        del sampled_probs
+
+        surface_loss = self.prob_surface_loss(
+            orig_vertices,
+            original_faces,
+            sampled_vertices,
+            sampled_faces,
+            face_probs
+        )
+
+        del original_faces
+
+        collision_loss = self.collision_loss(
+            sampled_vertices,
+            sampled_faces,
+            face_probs
+        )
+        edge_crossing_loss = self.edge_crossing_loss(
+            sampled_vertices,
+            sampled_faces,
+            face_probs
+        )
+
+        del face_probs
+
         overlapping_triangles_loss = self.overlapping_triangles_loss(sampled_vertices, sampled_faces)
 
         total_loss = (
-            chamfer_loss
-            + surface_loss
-            + self.lambda_c * collision_loss
-            + self.lambda_e * edge_crossing_loss
-            + self.lambda_o * overlapping_triangles_loss
+                chamfer_loss
+                + surface_loss
+                + self.lambda_c * collision_loss
+                + self.lambda_e * edge_crossing_loss
+                + self.lambda_o * overlapping_triangles_loss
         )
 
         return total_loss
