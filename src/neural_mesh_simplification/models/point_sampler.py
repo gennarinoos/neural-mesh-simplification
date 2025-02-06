@@ -23,4 +23,15 @@ class PointSamplerDGL(nn.Module):
         return probabilities
 
     def sample(self, probabilities, num_samples):
-        return torch.multinomial(probabilities, num_samples, replacement=False)
+        max_samples = probabilities.shape[0]
+        if num_samples > max_samples:
+            raise ValueError(
+                f"num_samples ({num_samples}) cannot be larger than number of vertices ({max_samples})"
+            )
+
+        # Multinomial sampling based on probabilities
+        sampled_indices = torch.multinomial(
+            probabilities, num_samples, replacement=False
+        )
+
+        return sampled_indices

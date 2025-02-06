@@ -25,7 +25,9 @@ class TriangleCollisionLoss(nn.Module):
             return torch.tensor(0.0, device=vertices.device)
 
         # Ensure face_probabilities matches the number of faces
-        face_probabilities = face_probabilities[:num_faces]
+        face_probabilities = torch.nn.functional.pad(
+            face_probabilities, (0, max(0, num_faces - face_probabilities.shape[0]))
+        )[:num_faces]
 
         v0, v1, v2 = vertices[faces].unbind(1)
 
@@ -35,6 +37,8 @@ class TriangleCollisionLoss(nn.Module):
         face_normals = torch.linalg.cross(edges1, edges2)
         face_normal_lengths = torch.norm(face_normals, dim=1, keepdim=True)
         face_normals = face_normals / (face_normal_lengths + self.epsilon)
+
+        del edges1, edges2, face_normal_lengths  # No longer needed
 
         # Calculate centroids
         centroids = (v0 + v1 + v2) / 3
@@ -46,7 +50,11 @@ class TriangleCollisionLoss(nn.Module):
         collision_count = torch.zeros(num_faces, device=vertices.device)
         for i in range(num_faces):
             nearby_faces = neighbors[i]
-            nearby_v0, nearby_v1, nearby_v2 = v0[nearby_faces], v1[nearby_faces], v2[nearby_faces]
+            nearby_v0, nearby_v1, nearby_v2 = (
+                v0[nearby_faces],
+                v1[nearby_faces],
+                v2[nearby_faces],
+            )
             collisions = self.check_triangle_intersection(
                 v0[i],
                 v1[i],

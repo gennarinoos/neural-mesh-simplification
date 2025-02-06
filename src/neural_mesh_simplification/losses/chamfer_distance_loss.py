@@ -27,11 +27,17 @@ class ProbabilisticChamferDistanceLoss(nn.Module):
         if P.size(0) == 0 or Ps.size(0) == 0:
             return torch.tensor(0.0, device=P.device, requires_grad=True)
 
+        # Ensure inputs are on the same device
+        Ps = Ps.to(P.device)
+        probabilities = probabilities.to(P.device)
+
         # Compute distances from Ps to P
         dist_s_to_o = self.compute_minimum_distances(Ps, P)
 
         # Compute distances from P to Ps
-        dist_o_to_s, min_indices = self.compute_minimum_distances(P, Ps, return_indices=True)
+        dist_o_to_s, min_indices = self.compute_minimum_distances(
+            P, Ps, return_indices=True
+        )
 
         # Weight distances by probabilities
         weighted_dist_s_to_o = dist_s_to_o * probabilities
@@ -62,6 +68,8 @@ class ProbabilisticChamferDistanceLoss(nn.Module):
         """
         # Compute pairwise distances
         distances = torch.cdist(source, target)
+
+        # Find minimum distances
         min_distances, min_indices = distances.min(dim=1)
 
         if return_indices:
