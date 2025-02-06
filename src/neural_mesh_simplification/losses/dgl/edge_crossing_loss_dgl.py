@@ -8,36 +8,59 @@ class EdgeCrossingLoss(nn.Module):
         super().__init__()
         self.k = k  # Number of nearest triangles to consider
 
-    def forward(self, g: dgl.DGLGraph, faces: torch.Tensor, face_probs: torch.Tensor) -> torch.Tensor:
-        vertices = g.ndata['pos']
+    def forward(
+        self,
+        vertices: torch.Tensor,
+        faces: torch.Tensor,
+        face_probs: torch.Tensor
+    ) -> torch.Tensor:
 
+        # If no faces, return zero loss
         if faces.shape[0] == 0:
             return torch.tensor(0.0, device=vertices.device)
-
         # Ensure face_probs matches the number of faces
-        face_probs = face_probs[:faces.shape[0]]
+        if face_probs.shape[0] > faces.shape[0]:
+            face_probs = face_probs[: faces.shape[0]]
+        elif face_probs.shape[0] < faces.shape[0]:
+            # Pad with zeros if we have fewer probabilities than faces
+            padding = torch.zeros(
+                faces.shape[0] - face_probs.shape[0], device=face_probs.device
+            )
+            face_probs = torch.cat([face_probs, padding])
 
-        # Find k-nearest triangles for each triangle
-        nearest_triangles = self.find_nearest_triangles(g, faces)
+        # 1. Find k-nearest triangles for each triangle
+        nearest_triangles = self.find_nearest_triangles(vertices, faces)
 
-        # Detect edge crossings between nearby triangles
-        crossings = self.detect_edge_crossings(g, faces, nearest_triangles)
+        # 2. Detect edge crossings between nearby triangles
+        crossings = self.detect_edge_crossings(vertices, faces, nearest_triangles)
 
-        # Calculate loss
+        # 3. Calculate loss
         loss = self.calculate_loss(crossings, face_probs)
 
         return loss
 
-    def find_nearest_triangles(self, g: dgl.DGLGraph, faces: torch.Tensor) -> torch.Tensor:
-        centroids = g.ndata['pos'][faces].mean(dim=1)
-        k = min(self.k, centroids.shape[0])
+    def find_nearest_triangles(
+        self, vertices: torch.Tensor, faces: torch.Tensor
+    ) -> torch.Tensor:
+        # Compute triangle centroids
+        centroids = vertices[faces].mean(dim=1)
+
+        # Use knn to find nearest triangles
+        k = min(
+            self.k, centroids.shape[0]
+        )  # Ensure k is not larger than the number of centroids
         g_knn = dgl.knn_graph(centroids, k)
+
         return g_knn.edges()[1].reshape(-1, k)
 
-    def detect_edge_crossings(self, g: dgl.DGLGraph, faces: torch.Tensor, nearest_triangles: torch.Tensor) -> torch.Tensor:
-        vertices = g.ndata['pos']
-
+    def detect_edge_crossings(
+        self,
+        vertices: torch.Tensor,
+        faces: torch.Tensor,
+        nearest_triangles: torch.Tensor,
+    ) -> torch.Tensor:
         def edge_vectors(triangles):
+            # Extracts the edges from a triangle defined by vertex indices
             return vertices[triangles[:, [1, 2, 0]]] - vertices[triangles]
 
         edges = edge_vectors(faces)
@@ -55,5 +78,9 @@ class EdgeCrossingLoss(nn.Module):
 
         return crossings
 
-    def calculate_loss(self, crossings: torch.Tensor, face_probs: torch.Tensor) -> torch.Tensor:
-        return torch.sum(face_probs * crossings, dtype=torch.float32)
+    def calculate_loss(
+        self, crossings: torch.Tensor, face_probs: torch.Tensor
+    ) -> torch.Tensor:
+        # Weighted sum of crossings by triangle probabilities
+        num_faces = face_probs.shape[0]
+        return torch.sum(face_probs * crossings, dtype=torch.float32) / num_faces

@@ -15,12 +15,10 @@ class TriangleCollisionLoss(nn.Module):
 
     def forward(
         self,
-        g: dgl.DGLGraph,
+        vertices: torch.Tensor,
         faces: torch.Tensor,
         face_probabilities: torch.Tensor
     ) -> torch.Tensor:
-        vertices = g.ndata['pos']
-
         num_faces = faces.shape[0]
 
         if num_faces == 0:

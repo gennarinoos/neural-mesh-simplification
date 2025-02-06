@@ -1,4 +1,3 @@
-import dgl
 import torch
 import torch.nn as nn
 
@@ -16,21 +15,19 @@ class OverlappingTrianglesLoss(nn.Module):
         self.num_samples = num_samples  # Number of points to sample from each triangle
         self.k = k  # Number of nearest triangles to consider
 
-    def forward(self, g: dgl.DGLGraph, faces: torch.Tensor):
-        vertices = g.ndata['pos']
+    def forward(self, vertices: torch.Tensor, faces: torch.Tensor):
 
         # If no faces, return zero loss
         if faces.shape[0] == 0:
             return torch.tensor(0.0, device=vertices.device)
 
-        # Sample points from each triangle
+        # 1. Sample points from each triangle
         sampled_points, point_face_indices = self.sample_points_from_triangles(vertices, faces)
 
-        # Find k-nearest triangles for each point using DGL
-        g_knn = dgl.knn_graph(sampled_points, self.k)
-        nearest_triangles = g_knn.edges()[1].reshape(-1, self.k)
+        # 2. Find k-nearest triangles for each point
+        nearest_triangles = self.find_nearest_triangles(sampled_points, vertices, faces)
 
-        # Detect overlaps and calculate the loss
+        # 3. Detect overlaps and calculate the loss
         overlap_penalty = self.calculate_overlap_loss(
             sampled_points, vertices, faces, nearest_triangles, point_face_indices
         )

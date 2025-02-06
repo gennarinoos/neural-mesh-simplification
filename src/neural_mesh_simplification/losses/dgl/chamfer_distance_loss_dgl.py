@@ -1,4 +1,3 @@
-import dgl
 import torch
 import torch.nn as nn
 
@@ -7,10 +6,23 @@ class ProbabilisticChamferDistanceLoss(nn.Module):
     def __init__(self):
         super(ProbabilisticChamferDistanceLoss, self).__init__()
 
-    def forward(self, original_g: dgl.DGLGraph, simplified_g: dgl.DGLGraph):
-        P = original_g.ndata['pos']
-        Ps = simplified_g.ndata['pos']
-        probabilities = simplified_g.ndata['sample_prob']
+    def forward(
+        self,
+        P: torch.Tensor,
+        Ps: torch.Tensor,
+        probabilities: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Compute the Probabilistic Chamfer Distance loss.
+
+        Args:
+            P (torch.Tensor): Original point cloud, shape (N, 3)
+            Ps (torch.Tensor): Sampled point cloud, shape (M, 3)
+            probabilities (torch.Tensor): Sampling probabilities for Ps, shape (M,)
+
+        Returns:
+            torch.Tensor: Scalar loss value
+        """
 
         if P.size(0) == 0 or Ps.size(0) == 0:
             return torch.tensor(0.0, device=P.device, requires_grad=True)

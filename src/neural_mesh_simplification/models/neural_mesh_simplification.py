@@ -107,7 +107,7 @@ class NeuralMeshSimplification(nn.Module):
 
         simplified_g.ndata['pos'] = sampled_pos
         simplified_g.ndata['x'] = sampled_x
-        simplified_g.ndata['sample_prob'] = sampled_probs
+        simplified_g.ndata['sampled_prob'] = sampled_probs
 
         return simplified_g, simplified_faces, face_probs
 
@@ -149,25 +149,33 @@ class NeuralMeshSimplification(nn.Module):
         Returns:
             tuple: Candidate triangles and their probabilities.
         """
-        g = g.to(self.device)
-        num_nodes = g.num_nodes()
+
+        edge_index = torch.stack(g.edges())
+
+        # Handle the case when edge_index is empty
+        if edge_index.numel() == 0:
+            return (
+                torch.empty((0, 3), dtype=torch.long, device=self.device),
+                torch.empty(0, device=self.device)
+            )
+
+        num_nodes = edge_index.max().item() + 1
+
+        # Create an adjacency matrix from the edge index
+        adj_matrix = torch.zeros(num_nodes, num_nodes, device=self.device)
+
+        # Check if edge_probs is a tuple or a tensor
+        if isinstance(edge_probs, tuple):
+            edge_indices, edge_values = edge_probs
+            adj_matrix[edge_indices[0], edge_indices[1]] = edge_values
+        else:
+            adj_matrix[edge_index[0], edge_index[1]] = edge_probs
+
+        # Adjust k based on the number of nodes
         k = min(self.k, num_nodes - 1)
 
-        # Create a feature matrix from edge probabilities
-        src, dst = g.edges()
-        features = torch.zeros((num_nodes, num_nodes), device=self.device)
-        features[src, dst] = edge_probs
-        features[dst, src] = edge_probs  # Assuming undirected graph
-
-        del src
-        del dst
-
-        # Find k-nearest neighbors using dgl.knn_graph
-        knn_g = dgl.knn_graph(features, k)
-        knn_indices = knn_g.edges()[1].reshape(-1, k)
-
-        del features
-        del knn_g
+        # Find k-nearest neighbors for each node
+        _, knn_indices = torch.topk(adj_matrix, k=k, dim=1)
 
         # Generate candidate triangles
         triangles = []
@@ -177,18 +185,20 @@ class NeuralMeshSimplification(nn.Module):
             neighbors = knn_indices[i]
             for j in range(k):
                 for l in range(j + 1, k):
-                    n1, n2 = neighbors[j].item(), neighbors[l].item()
-                    if g.has_edges_between(n1, n2):
-                        triangles.append(torch.tensor([i, n1, n2], device=self.device))
-                        e1 = g.edge_ids(i, n1)
-                        e2 = g.edge_ids(i, n2)
-                        e3 = g.edge_ids(n1, n2)
-                        prob = (edge_probs[e1] * edge_probs[e2] * edge_probs[e3]) ** (1 / 3)
+                    n1, n2 = neighbors[j], neighbors[l]
+                    if adj_matrix[n1, n2] > 0:  # Check if the third edge exists
+                        triangle = torch.tensor([i, n1, n2], device=self.device)
+                        triangles.append(triangle)
+
+                        # Calculate triangle probability
+                        prob = (
+                                   adj_matrix[i, n1] * adj_matrix[i, n2] * adj_matrix[n1, n2]
+                               ) ** (1 / 3)
                         triangle_probs.append(prob)
 
         if triangles:
             triangles = torch.stack(triangles)
-            triangle_probs = torch.stack(triangle_probs)
+            triangle_probs = torch.tensor(triangle_probs, device=self.device)
         else:
             triangles = torch.empty((0, 3), dtype=torch.long, device=self.device)
             triangle_probs = torch.empty(0, device=self.device)

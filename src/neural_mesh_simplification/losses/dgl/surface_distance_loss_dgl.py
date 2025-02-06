@@ -1,71 +1,196 @@
-import dgl
+import logging
+
 import torch
 import torch.nn as nn
 
+logger = logging.getLogger(__name__)
+
 
 class ProbabilisticSurfaceDistanceLoss(nn.Module):
-    def __init__(self, num_samples: int = 100):
-        super(ProbabilisticSurfaceDistanceLoss, self).__init__()
+    def __init__(self, k: int = 3, num_samples: int = 100, epsilon: float = 1e-8):
+        super().__init__()
+        self.k = k
         self.num_samples = num_samples
+        self.epsilon = epsilon
 
     def forward(
         self,
-        original_g: dgl.DGLGraph,
+        original_vertices: torch.Tensor,
         original_faces: torch.Tensor,
-        simplified_g: dgl.DGLGraph,
+        simplified_vertices: torch.Tensor,
         simplified_faces: torch.Tensor,
-    ):
-        original_vertices = original_g.ndata['pos']
-        simplified_vertices = simplified_g.ndata['pos']
-        probabilities = simplified_g.ndata['sample_prob']
+        face_probabilities: torch.Tensor,
+    ) -> torch.Tensor:
+        if original_vertices.shape[0] == 0 or simplified_vertices.shape[0] == 0:
+            return torch.tensor(0.0, device=original_vertices.device)
 
-        # Sample points on original mesh
-        original_samples = self.sample_points_on_mesh(original_vertices, original_faces)
+        # Pad face probabilities once for both terms
+        face_probabilities = torch.nn.functional.pad(
+            face_probabilities,
+            (0, max(0, simplified_faces.shape[0] - face_probabilities.shape[0]))
+        )[:simplified_faces.shape[0]]
 
-        # Sample points on simplified mesh
-        simplified_samples = self.sample_points_on_mesh(simplified_vertices, simplified_faces)
+        forward_term = self.compute_forward_term(
+            original_vertices,
+            original_faces,
+            simplified_vertices,
+            simplified_faces,
+            face_probabilities,
+        )
 
-        # Compute distances
-        dist_o_to_s = self.compute_minimum_distances(original_samples, simplified_samples)
-        dist_s_to_o = self.compute_minimum_distances(simplified_samples, original_samples)
+        reverse_term = self.compute_reverse_term(
+            original_vertices,
+            original_faces,
+            simplified_vertices,
+            simplified_faces,
+            face_probabilities,
+        )
 
-        # Weight distances by probabilities
-        weighted_dist_s_to_o = dist_s_to_o * probabilities.unsqueeze(1)
-        weighted_dist_o_to_s = dist_o_to_s
+        total_loss = forward_term + reverse_term
+        return total_loss
 
-        # Compute loss
-        loss = weighted_dist_s_to_o.mean() + weighted_dist_o_to_s.mean()
+    def compute_forward_term(
+        self,
+        original_vertices: torch.Tensor,
+        original_faces: torch.Tensor,
+        simplified_vertices: torch.Tensor,
+        simplified_faces: torch.Tensor,
+        face_probabilities: torch.Tensor,
+    ) -> torch.Tensor:
+        # If there are no faces, return zero loss
+        if simplified_faces.shape[0] == 0:
+            return torch.tensor(0.0, device=original_vertices.device)
 
-        return loss
+        simplified_barycenters = self.compute_barycenters(
+            simplified_vertices, simplified_faces
+        )
+        original_barycenters = self.compute_barycenters(
+            original_vertices, original_faces
+        )
 
-    def sample_points_on_mesh(self, vertices, faces) -> torch.Tensor:
-        num_faces = faces.shape[0]
+        distances = self.compute_squared_distances(
+            simplified_barycenters, original_barycenters
+        )
 
-        if num_faces == 0:
-            return vertices.unbind(1)
-
-        face_areas = self.compute_face_areas(vertices, faces)
-        face_probs = face_areas / face_areas.sum()
-
-        selected_faces = torch.multinomial(face_probs, self.num_samples, replacement=True)
-        u = torch.rand(self.num_samples, device=vertices.device)
-        v = torch.rand(self.num_samples, device=vertices.device)
-        w = 1 - u - v
-        mask = w < 0
-        u[mask] += w[mask]
-        v[mask] = 1 - u[mask]
-        w[mask] = 0
-
-        v0, v1, v2 = vertices[faces[selected_faces]].unbind(1)
-        sampled_points = u.unsqueeze(1) * v0 + v.unsqueeze(1) * v1 + w.unsqueeze(1) * v2
-
-        return sampled_points
-
-    def compute_face_areas(self, vertices, faces):
-        v0, v1, v2 = vertices[faces].unbind(1)
-        return torch.norm(torch.cross(v1 - v0, v2 - v0), dim=1) * 0.5
-
-    def compute_minimum_distances(self, source, target):
-        distances = torch.cdist(source, target)
         min_distances, _ = distances.min(dim=1)
+
+        del distances  # Free memory
+
+        # Compute total loss with probability penalty
+        total_loss = (face_probabilities * min_distances).sum()
+        probability_penalty = 1e-4 * (1.0 - face_probabilities).sum()
+
+        del min_distances  # Free memory
+
+        return total_loss + probability_penalty
+
+    def compute_reverse_term(
+        self,
+        original_vertices: torch.Tensor,
+        original_faces: torch.Tensor,
+        simplified_vertices: torch.Tensor,
+        simplified_faces: torch.Tensor,
+        face_probabilities: torch.Tensor,
+    ) -> torch.Tensor:
+        # If there are no faces, return zero loss
+        if simplified_faces.shape[0] == 0:
+            return torch.tensor(0.0, device=original_vertices.device)
+
+        # If meshes are identical, reverse term should be zero
+        if torch.equal(original_vertices, simplified_vertices) and torch.equal(
+            original_faces, simplified_faces
+        ):
+            return torch.tensor(0.0, device=original_vertices.device)
+
+        # Step 1: Sample points from the simplified mesh
+        sampled_points = self.sample_points_from_triangles(
+            simplified_vertices,
+            simplified_faces,
+            self.num_samples
+        )
+
+        # Step 2: Compute the minimum distance from each sampled point to the original mesh
+        distances = self.compute_min_distances_to_original(
+            sampled_points,
+            original_vertices
+        )
+
+        # Normalize and scale distances
+        max_dist = distances.max() + self.epsilon
+        scaled_distances = (distances / max_dist) * 0.1
+
+        del distances  # Free memory
+
+        # Reshape face probabilities to match the sampled points
+        face_probs_expanded = face_probabilities.repeat_interleave(
+            self.num_samples
+        )
+
+        # Compute weighted distances
+        reverse_term = (face_probs_expanded * scaled_distances).sum()
+
+        return reverse_term
+
+    def sample_points_from_triangles(
+        self,
+        vertices: torch.Tensor,
+        faces: torch.Tensor,
+        num_samples: int
+    ) -> torch.Tensor:
+        """Vectorized point sampling from triangles"""
+        num_faces = faces.shape[0]
+        face_vertices = vertices[faces]
+
+        # Generate random values for all samples at once
+        sqrt_r1 = torch.sqrt(torch.rand(
+            num_faces, num_samples, 1,
+            device=vertices.device
+        ))
+        r2 = torch.rand(
+            num_faces, num_samples, 1,
+            device=vertices.device
+        )
+
+        # Compute barycentric coordinates
+        a = 1 - sqrt_r1
+        b = sqrt_r1 * (1 - r2)
+        c = sqrt_r1 * r2
+
+        # Compute samples using broadcasting
+        samples = (
+            a * face_vertices[:, None, 0] +
+            b * face_vertices[:, None, 1] +
+            c * face_vertices[:, None, 2]
+        )
+
+        del a, b, c, sqrt_r1, r2, face_vertices  # Free memory
+
+        return samples.reshape(-1, 3)
+
+    def compute_min_distances_to_original(
+        self,
+        sampled_points: torch.Tensor,
+        target_vertices: torch.Tensor
+    ) -> torch.Tensor:
+        """Efficient batch distance computation using pairwise distances"""
+        # Ensure float32 for consistency
+        sp_float = sampled_points.float()  # Shape: [M, D]
+        tv_float = target_vertices.float()  # Shape: [N, D]
+
+        # Compute all pairwise distances between sampled_points and target_vertices
+        pairwise_distances = torch.cdist(sp_float, tv_float)  # Shape: [M, N]
+
+        # Find the minimum distance for each sampled point
+        min_distances, _ = pairwise_distances.min(dim=1)  # Shape: [M]
+
         return min_distances
+
+    @staticmethod
+    def compute_squared_distances(points1: torch.Tensor, points2: torch.Tensor) -> torch.Tensor:
+        """Compute squared distances efficiently using torch.cdist"""
+        return torch.cdist(points1, points2, p=2).float()
+
+    def compute_barycenters(
+        self, vertices: torch.Tensor, faces: torch.Tensor
+    ) -> torch.Tensor:
+        return vertices[faces].mean(dim=1)
