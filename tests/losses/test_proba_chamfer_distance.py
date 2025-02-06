@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from neural_mesh_simplification.losses.chamfer_distance_loss_dgl import ProbabilisticChamferDistanceLoss
+from neural_mesh_simplification.losses.chamfer_distance_loss import ProbabilisticChamferDistanceLoss
 
 
 @pytest.fixture

@@ -2,11 +2,11 @@ import dgl
 import torch
 import torch.nn as nn
 
-from .chamfer_distance_loss_dgl import ProbabilisticChamferDistanceLoss
-from .edge_crossing_loss_dgl import EdgeCrossingLoss
-from .overlapping_triangles_loss_dgl import OverlappingTrianglesLoss
-from .surface_distance_loss_dgl import ProbabilisticSurfaceDistanceLoss
-from .triangle_collision_loss_dgl import TriangleCollisionLoss
+from .chamfer_distance_loss import ProbabilisticChamferDistanceLoss
+from .edge_crossing_loss import EdgeCrossingLoss
+from .overlapping_triangles_loss import OverlappingTrianglesLoss
+from .surface_distance_loss import ProbabilisticSurfaceDistanceLoss
+from .triangle_collision_loss import TriangleCollisionLoss
 
 
 class CombinedMeshSimplificationLoss(nn.Module):
