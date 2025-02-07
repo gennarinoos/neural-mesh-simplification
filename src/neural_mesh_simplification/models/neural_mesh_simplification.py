@@ -55,17 +55,23 @@ class NeuralMeshSimplification(nn.Module):
         pos = g.ndata['pos'] if 'pos' in g.ndata else x
 
         # Step 1: Sample points using the PointSamplerDGL
+        logger.debug(f"Calling Point Sampler")
         sampled_indices, sampled_probs = self.sample_points(g)
+        logger.debug(f"devices (sampled_indices, sampled_probs) = ({sampled_indices.device}, {sampled_probs.device})")
 
         # Extract sampled features and positions
         sampled_x = x[sampled_indices]
         sampled_pos = pos[sampled_indices]
 
         # Create a new subgraph with sampled nodes
+        logger.debug(f"Creating node subgraph with sampled nodes")
         sampled_g = dgl.node_subgraph(g, sampled_indices)
+        logger.debug(f"devices sampled_g {sampled_g.device}")
 
         # Step 2: Predict edges using EdgePredictorDGL
+        logger.debug(f"Calling Edge Predictor")
         edge_index_pred, edge_probs = self.edge_predictor(sampled_g)
+        logger.debug(f"devices (edge_index_pred, edge_probs) = ({edge_index_pred.device}, {edge_probs.device})")
 
         # Filter edges to keep only those connecting existing nodes
         # valid_edges = (edge_index_pred[0] < sampled_indices.shape[0]) & (edge_index_pred[1] < sampled_indices.shape[0])
@@ -73,7 +79,9 @@ class NeuralMeshSimplification(nn.Module):
         # edge_probs = edge_probs[valid_edges]
 
         # Step 3: Generate candidate triangles
+        logger.debug(f"Generating candidate triangles")
         candidate_triangles, triangle_probs = self.generate_candidate_triangles(sampled_g, edge_probs)
+        logger.debug(f"devices (candidate_triangles, triangle_probs) = ({candidate_triangles.device}, {triangle_probs.device})")
 
         # Step 4: Classify faces using FaceClassifierDGL
         if candidate_triangles.shape[0] > 0:
@@ -87,7 +95,9 @@ class NeuralMeshSimplification(nn.Module):
             triangle_g.ndata['pos'] = triangle_centers
 
             # Classify faces
+            logger.debug(f"Calling Face Classifier")
             face_probs = self.face_classifier(triangle_g, triangle_centers)
+            logger.debug(f"devices face_probs {face_probs.device}")
         else:
             face_probs = torch.empty(0, device=device)
 
@@ -105,8 +115,10 @@ class NeuralMeshSimplification(nn.Module):
         # Create a new DGLGraph for the simplified mesh
         simplified_g = dgl.graph(
             (edge_index_pred[0], edge_index_pred[1]),
-            num_nodes=sampled_indices.shape[0]
+            num_nodes=sampled_indices.shape[0],
+            device=device
         )
+
         # Ensure all sampled vertices are included
         all_nodes = torch.arange(sampled_indices.shape[0], device=device)
         simplified_g = dgl.add_self_loop(simplified_g)
