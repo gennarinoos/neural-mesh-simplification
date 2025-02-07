@@ -1,3 +1,5 @@
+import logging
+
 import dgl
 import torch
 import torch.nn as nn
@@ -6,6 +8,8 @@ from dgl import DGLGraph
 from .edge_predictor import EdgePredictorDGL
 from .face_classifier import FaceClassifierDGL
 from .point_sampler import PointSamplerDGL
+
+logger = logging.getLogger(__name__)
 
 
 class NeuralMeshSimplification(nn.Module):
@@ -18,16 +22,14 @@ class NeuralMeshSimplification(nn.Module):
         k: int,
         edge_k: int,
         target_ratio: float,
-        device=torch.device("cpu"),
     ):
         super(NeuralMeshSimplification, self).__init__()
-        self.device = device
         self.k = k
         self.target_ratio = target_ratio
 
-        self.point_sampler = PointSamplerDGL(input_dim, hidden_dim, num_layers).to(device)
-        self.edge_predictor = EdgePredictorDGL(input_dim, edge_hidden_dim, edge_k).to(device)
-        self.face_classifier = FaceClassifierDGL(input_dim, hidden_dim, num_layers, k).to(device)
+        self.point_sampler = PointSamplerDGL(input_dim, hidden_dim, num_layers)
+        self.edge_predictor = EdgePredictorDGL(input_dim, edge_hidden_dim, edge_k)
+        self.face_classifier = FaceClassifierDGL(input_dim, hidden_dim, num_layers, k)
 
     def forward(
         self,
@@ -44,6 +46,11 @@ class NeuralMeshSimplification(nn.Module):
             torch.Tensor: The simplified faces
             torch.Tensor: The face probabilities from the Face Classifier
         """
+
+        device = g.device
+
+        logger.debug(f"Executing Mesh Simplification Forward pass on device {device}")
+
         x = g.ndata['x']
         pos = g.ndata['pos'] if 'pos' in g.ndata else x
 
@@ -82,12 +89,12 @@ class NeuralMeshSimplification(nn.Module):
             # Classify faces
             face_probs = self.face_classifier(triangle_g, triangle_centers)
         else:
-            face_probs = torch.empty(0, device=self.device)
+            face_probs = torch.empty(0, device=device)
 
         # Step 5: Filter triangles based on face probabilities
         if candidate_triangles.shape[0] == 0:
             simplified_faces = torch.empty(
-                (0, 3), dtype=torch.long, device=self.device
+                (0, 3), dtype=torch.long, device=device
             )
         else:
             threshold = torch.quantile(
@@ -101,7 +108,7 @@ class NeuralMeshSimplification(nn.Module):
             num_nodes=sampled_indices.shape[0]
         )
         # Ensure all sampled vertices are included
-        all_nodes = torch.arange(sampled_indices.shape[0], device=self.device)
+        all_nodes = torch.arange(sampled_indices.shape[0], device=device)
         simplified_g = dgl.add_self_loop(simplified_g)
         simplified_g = dgl.add_edges(simplified_g, all_nodes, all_nodes)
 
@@ -150,19 +157,21 @@ class NeuralMeshSimplification(nn.Module):
             tuple: Candidate triangles and their probabilities.
         """
 
+        device = g.device
+
         edge_index = torch.stack(g.edges())
 
         # Handle the case when edge_index is empty
         if edge_index.numel() == 0:
             return (
-                torch.empty((0, 3), dtype=torch.long, device=self.device),
-                torch.empty(0, device=self.device)
+                torch.empty((0, 3), dtype=torch.long, device=device),
+                torch.empty(0, device=device)
             )
 
         num_nodes = edge_index.max().item() + 1
 
         # Create an adjacency matrix from the edge index
-        adj_matrix = torch.zeros(num_nodes, num_nodes, device=self.device)
+        adj_matrix = torch.zeros(num_nodes, num_nodes, device=device)
 
         # Check if edge_probs is a tuple or a tensor
         if isinstance(edge_probs, tuple):
@@ -187,7 +196,7 @@ class NeuralMeshSimplification(nn.Module):
                 for l in range(j + 1, k):
                     n1, n2 = neighbors[j], neighbors[l]
                     if adj_matrix[n1, n2] > 0:  # Check if the third edge exists
-                        triangle = torch.tensor([i, n1, n2], device=self.device)
+                        triangle = torch.tensor([i, n1, n2], device=device)
                         triangles.append(triangle)
 
                         # Calculate triangle probability
@@ -198,9 +207,9 @@ class NeuralMeshSimplification(nn.Module):
 
         if triangles:
             triangles = torch.stack(triangles)
-            triangle_probs = torch.tensor(triangle_probs, device=self.device)
+            triangle_probs = torch.tensor(triangle_probs, device=device)
         else:
-            triangles = torch.empty((0, 3), dtype=torch.long, device=self.device)
-            triangle_probs = torch.empty(0, device=self.device)
+            triangles = torch.empty((0, 3), dtype=torch.long, device=device)
+            triangle_probs = torch.empty(0, device=device)
 
         return triangles, triangle_probs

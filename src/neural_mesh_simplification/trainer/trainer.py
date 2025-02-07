@@ -39,8 +39,7 @@ class Trainer:
             k=config["model"]["k"],
             edge_k=config["model"]["edge_k"],
             target_ratio=config["model"]["target_ratio"],
-            device=self.device,
-        )
+        ).to(self.device)
 
         logger.debug("Setting up optimizer and loss...")
         self.optimizer = Adam(
@@ -55,8 +54,8 @@ class Trainer:
             lambda_c=config["loss"]["lambda_c"],
             lambda_e=config["loss"]["lambda_e"],
             lambda_o=config["loss"]["lambda_o"],
-            device=self.device,
-        )
+        ).to(self.device)
+
         self.early_stopping_patience = config["training"]["early_stopping_patience"]
         self.best_val_loss = float("inf")
         self.early_stopping_counter = 0
@@ -162,6 +161,8 @@ class Trainer:
             logger.debug(f"Processing batch {batch_idx + 1}")
             for orig_graph, orig_faces in zip(*batch):
                 self.optimizer.zero_grad()
+
+                orig_graph = orig_graph.to(self.device)
                 s_graph, s_faces, face_probs = self.model(orig_graph)
 
                 loss = self.criterion(orig_graph, orig_faces, s_graph, s_faces, face_probs)
