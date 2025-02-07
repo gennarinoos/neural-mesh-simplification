@@ -76,8 +76,8 @@ class NeuralMeshSimplification(nn.Module):
                      f"({edge_index_pred.device}, {edge_probs.device})")
 
         # Filter edges to keep only those connecting existing nodes
-        valid_edges = ((edge_index_pred[0] < sampled_indices.shape[0])
-                       & (edge_index_pred[1] < sampled_indices.shape[0]))
+        # valid_edges = ((edge_index_pred[0] < sampled_indices.shape[0])
+        #                & (edge_index_pred[1] < sampled_indices.shape[0]))
         # edge_index_pred = edge_index_pred[:, valid_edges]
         # edge_probs = edge_probs[valid_edges]
 
@@ -120,12 +120,12 @@ class NeuralMeshSimplification(nn.Module):
             simplified_faces = candidate_triangles[face_probs > threshold]
 
         # Create a new DGLGraph for the simplified mesh
-        logger.debug(f"Creating a new DGLGraph for the simplified mesh")
         simplified_g = dgl.graph(
             (edge_index_pred[0], edge_index_pred[1]),
             num_nodes=sampled_indices.shape[0],
             device=device
-        )
+        ).to(device)
+        logger.debug(f"Creating a new DGLGraph for the simplified mesh on device {simplified_g.device}")
 
         # Ensure all sampled vertices are included
         all_nodes = torch.arange(sampled_indices.shape[0], device=device)
