@@ -11,7 +11,7 @@ from torch.utils.data import random_split
 
 from .resource_monitor import monitor_resources
 from ..data import MeshSimplificationDataset
-from ..data.dataset import collate
+from ..data.dataset import collate, dgl_to_trimesh
 from ..losses import CombinedMeshSimplificationLoss
 from ..metrics import chamfer_distance, normal_consistency, edge_preservation, hausdorff_distance
 from ..models import NeuralMeshSimplification
@@ -250,17 +250,21 @@ class Trainer:
             "hausdorff_distance": 0.0
         }
         with torch.no_grad():
-            for batch in data_loader:
-                output, face_probs = self.model(batch)
+            for batch_idx, batch in enumerate(data_loader):
+                for orig_graph, orig_faces in zip(*batch):
+                    s_graph, s_faces, face_probs = self.model(orig_graph)
 
-                # TODO: Define methods that can operate on a batch instead of a trimesh object
+                    orig_mesh = dgl_to_trimesh(orig_graph, orig_faces)
+                    s_mesh = dgl_to_trimesh(s_graph, s_faces)
 
-                metrics["chamfer_distance"] += chamfer_distance(batch, output)
-                metrics["normal_consistency"] += normal_consistency(batch, output)
-                metrics["edge_preservation"] += edge_preservation(batch, output)
-                metrics["hausdorff_distance"] += hausdorff_distance(batch, output)
+                    metrics["chamfer_distance"] += chamfer_distance(orig_mesh, s_mesh)
+                    metrics["normal_consistency"] += normal_consistency(orig_mesh)
+                    metrics["edge_preservation"] += edge_preservation(orig_mesh, s_mesh)
+                    metrics["hausdorff_distance"] += hausdorff_distance(orig_mesh, s_mesh)
+
         for key in metrics:
             metrics[key] /= len(data_loader)
+
         return metrics
 
     def handle_error(self, error: Exception):
