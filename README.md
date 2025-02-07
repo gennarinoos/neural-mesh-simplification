@@ -49,6 +49,9 @@ pip install dgl==2.2.0 -f https://data.dgl.ai/wheels/torch-2.3/repo.html
 Replace “cpu” with “cu121” or the appropriate CUDA version for your system. If you don't know what is your cuda version,
 run `nvidia-smi`
 
+NOTE: When updating version of PyTorch or DGL, please check https://www.dgl.ai/pages/start.html to determine
+the versions compatible with CUDA.
+
 After that you can install the remaining requirements
 
 ```bash
