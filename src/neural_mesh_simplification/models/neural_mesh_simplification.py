@@ -97,7 +97,12 @@ class NeuralMeshSimplification(nn.Module):
             triangle_centers = sampled_pos[candidate_triangles].mean(dim=1)
 
             # Create a new DGL graph for the triangles
-            triangle_g = dgl.graph(([], []), num_nodes=candidate_triangles.shape[0])
+            triangle_g = dgl.graph(
+                ([], []),
+                num_nodes=candidate_triangles.shape[0],
+                device=device
+            )
+            logger.debug(f"Created a new DGLGraph for the triangles on device {triangle_g.device}")
             triangle_g.ndata['x'] = triangle_features
             triangle_g.ndata['pos'] = triangle_centers
 
@@ -124,8 +129,8 @@ class NeuralMeshSimplification(nn.Module):
             (edge_index_pred[0], edge_index_pred[1]),
             num_nodes=sampled_indices.shape[0],
             device=device
-        ).to(device)
-        logger.debug(f"Creating a new DGLGraph for the simplified mesh on device {simplified_g.device}")
+        )
+        logger.debug(f"Created a new DGLGraph for the simplified mesh on device {simplified_g.device}")
 
         # Ensure all sampled vertices are included
         all_nodes = torch.arange(sampled_indices.shape[0], device=device)
