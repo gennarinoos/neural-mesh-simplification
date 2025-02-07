@@ -183,7 +183,7 @@ class Trainer:
         self.model.eval()
         val_loss = 0.0
         with torch.no_grad():
-            for batch_idx, batch in enumerate(self.train_loader):
+            for batch_idx, batch in enumerate(self.val_loader):
                 for orig_graph, orig_faces in zip(*batch):
                     s_graph, s_faces, face_probs = self.model(orig_graph)
                     loss = self.criterion(orig_graph, orig_faces, s_graph, s_faces, face_probs)
