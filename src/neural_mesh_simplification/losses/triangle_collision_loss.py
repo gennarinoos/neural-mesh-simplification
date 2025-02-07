@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class TriangleCollisionLoss(nn.Module):
     def __init__(
-        self, epsilon=1e-8, k=50, collision_threshold=1e-10, normal_threshold=0.99
+        self, epsilon=1e-8, k=20, collision_threshold=1e-10, normal_threshold=0.99
     ):
         super().__init__()
         self.epsilon = epsilon
