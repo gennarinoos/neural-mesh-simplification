@@ -57,7 +57,8 @@ class NeuralMeshSimplification(nn.Module):
         # Step 1: Sample points using the PointSamplerDGL
         logger.debug(f"Calling Point Sampler")
         sampled_indices, sampled_probs = self.sample_points(g)
-        logger.debug(f"devices (sampled_indices, sampled_probs) = ({sampled_indices.device}, {sampled_probs.device})")
+        logger.debug(f"devices (sampled_indices, sampled_probs) = "
+                     f"({sampled_indices.device}, {sampled_probs.device})")
 
         # Extract sampled features and positions
         sampled_x = x[sampled_indices]
@@ -71,17 +72,23 @@ class NeuralMeshSimplification(nn.Module):
         # Step 2: Predict edges using EdgePredictorDGL
         logger.debug(f"Calling Edge Predictor")
         edge_index_pred, edge_probs = self.edge_predictor(sampled_g)
-        logger.debug(f"devices (edge_index_pred, edge_probs) = ({edge_index_pred.device}, {edge_probs.device})")
+        logger.debug(f"devices (edge_index_pred, edge_probs) = "
+                     f"({edge_index_pred.device}, {edge_probs.device})")
 
         # Filter edges to keep only those connecting existing nodes
-        # valid_edges = (edge_index_pred[0] < sampled_indices.shape[0]) & (edge_index_pred[1] < sampled_indices.shape[0])
+        valid_edges = ((edge_index_pred[0] < sampled_indices.shape[0])
+                       & (edge_index_pred[1] < sampled_indices.shape[0]))
         # edge_index_pred = edge_index_pred[:, valid_edges]
         # edge_probs = edge_probs[valid_edges]
 
         # Step 3: Generate candidate triangles
         logger.debug(f"Generating candidate triangles")
-        candidate_triangles, triangle_probs = self.generate_candidate_triangles(sampled_g, edge_probs)
-        logger.debug(f"devices (candidate_triangles, triangle_probs) = ({candidate_triangles.device}, {triangle_probs.device})")
+        candidate_triangles, triangle_probs = self.generate_candidate_triangles(
+            sampled_g,
+            edge_probs
+        )
+        logger.debug(f"devices (candidate_triangles, triangle_probs) = "
+                     f"({candidate_triangles.device}, {triangle_probs.device})")
 
         # Step 4: Classify faces using FaceClassifierDGL
         if candidate_triangles.shape[0] > 0:
@@ -113,6 +120,7 @@ class NeuralMeshSimplification(nn.Module):
             simplified_faces = candidate_triangles[face_probs > threshold]
 
         # Create a new DGLGraph for the simplified mesh
+        logger.debug(f"Creating a new DGLGraph for the simplified mesh")
         simplified_g = dgl.graph(
             (edge_index_pred[0], edge_index_pred[1]),
             num_nodes=sampled_indices.shape[0],
@@ -124,6 +132,8 @@ class NeuralMeshSimplification(nn.Module):
         simplified_g = dgl.add_self_loop(simplified_g)
         simplified_g = dgl.add_edges(simplified_g, all_nodes, all_nodes)
 
+        logger.debug(f"devices (sampled_pos, sampled_x, sampled_probs) = "
+                     f"({sampled_pos.device}, {sampled_x.device}, {sampled_probs.device})")
         simplified_g.ndata['pos'] = sampled_pos
         simplified_g.ndata['x'] = sampled_x
         simplified_g.ndata['sampled_prob'] = sampled_probs
