@@ -1,5 +1,9 @@
+import logging
+
 import torch
 import torch.nn as nn
+
+logger = logging.getLogger(__name__)
 
 
 class ProbabilisticChamferDistanceLoss(nn.Module):
@@ -23,6 +27,8 @@ class ProbabilisticChamferDistanceLoss(nn.Module):
         Returns:
             torch.Tensor: Scalar loss value
         """
+
+        logger.debug(f"Calculating CHAMFER loss on device {P.device} {Ps.device} {probabilities.device}")
 
         if P.size(0) == 0 or Ps.size(0) == 0:
             return torch.tensor(0.0, device=P.device, requires_grad=True)

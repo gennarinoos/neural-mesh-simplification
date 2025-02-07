@@ -1,5 +1,9 @@
+import logging
+
 import torch
 import torch.nn as nn
+
+logger = logging.getLogger(__name__)
 
 
 class ProbabilisticSurfaceDistanceLoss(nn.Module):
@@ -16,6 +20,13 @@ class ProbabilisticSurfaceDistanceLoss(nn.Module):
             simplified_faces: torch.Tensor,
             face_probabilities: torch.Tensor,
     ) -> torch.Tensor:
+
+        logger.debug(f"Calculating SURFACE loss")
+        logger.debug(
+            f"devices (original_vertices, original_faces, simplified_vertices, simplified_faces, face_probabilities) = "
+            f"({original_vertices}, {original_faces}, {simplified_vertices}, {simplified_faces}, {face_probabilities})"
+        )
+
         # Early exit for empty meshes
         if original_vertices.shape[0] == 0 or simplified_vertices.shape[0] == 0:
             return torch.tensor(0.0, device=original_vertices.device)

@@ -1,6 +1,10 @@
+import logging
+
 import dgl
 import torch
 import torch.nn as nn
+
+logger = logging.getLogger(__name__)
 
 
 class TriangleCollisionLoss(nn.Module):
@@ -19,6 +23,12 @@ class TriangleCollisionLoss(nn.Module):
         faces: torch.Tensor,
         face_probabilities: torch.Tensor
     ) -> torch.Tensor:
+        logger.debug(f"Calculating TRIANGLE COLLISION loss")
+        logger.debug(
+            f"devices (vertices, faces, face_probabilities) = "
+            f"({vertices}, {faces}, {face_probabilities})"
+        )
+
         num_faces = faces.shape[0]
 
         if num_faces == 0:
