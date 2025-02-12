@@ -59,7 +59,7 @@ class EdgeCrossingLoss(nn.Module):
         k = min(
             self.k, centroids.shape[0]
         )  # Ensure k is not larger than the number of centroids
-        g_knn = dgl.knn_graph(centroids, k)
+        g_knn = dgl.knn_graph(centroids, k, exclude_self=True)
 
         return g_knn.edges()[1].reshape(-1, k)
 
